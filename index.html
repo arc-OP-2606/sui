@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>sui</title>
+<meta name="description" content="酒の色で、世界を知る。写真から銘柄と造り手の物語がわかり、場所と気分からその夜の一本を提案する。">
+<meta name="theme-color" content="#F7F3EE">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon-only.png">
+<link rel="apple-touch-icon" href="assets/icon-only.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <button class="brand" data-act="nav" data-view="home" aria-label="ホームへ"><span class="logo">su<em>i</em></span><span class="kanji">粋</span><span class="sub">酒の色で、世界を知る。</span></button>
+    <button class="iconbtn" data-act="nav" data-view="settings" aria-label="設定"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </header>
+  <main id="app" aria-live="polite"></main>
+  <nav class="tabbar" aria-label="メニュー">
+    <button class="tab" data-act="nav" data-view="home" aria-label="ホーム"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg><span>ホーム</span></button>
+    <button class="tab" data-act="nav" data-view="explore" aria-label="探す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 5.3-5.3 2.2 2.2-5.3z"/></svg><span>探す</span></button>
+    <button class="tab shoot" data-act="shoot" aria-label="撮る"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg></span></button>
+    <button class="tab" data-act="nav" data-view="ladders" aria-label="階段"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4v-4h4v-4h4V8h4"/></svg><span>階段</span></button>
+    <button class="tab" data-act="nav" data-view="calendar" aria-label="色暦"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z"/></svg><span>色暦</span></button>
+  </nav>
+  <input type="file" id="file" accept="image/*" capture="environment" hidden>
+</div>
+<script src="js/config.js"></script>
+<script src="js/data-core.js"></script>
+<script src="js/data-wines.js"></script>
+<script src="js/data-sakes.js"></script>
+<script src="js/render.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/recognize.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+<script src="js/native.js"></script>
+</body>
+</html>

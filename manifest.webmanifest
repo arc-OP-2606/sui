@@ -1,0 +1,10 @@
+{
+  "name": "sui 粋 － 酒の色で、世界を知る",
+  "short_name": "sui",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F7F3EE",
+  "theme_color": "#F7F3EE",
+  "icons": [{ "src": "assets/icon-only.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }]
+}
