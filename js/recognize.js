@@ -2,7 +2,8 @@
 (function (global) {
   'use strict';
   const SUI = global.SUI = global.SUI || {};
-  const MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  /* キーを直接使うときの順番（3.5 は混雑時の予備）。中継（relay/worker.js）経由ではモデルは中継が選ぶ（gemini-3.8-flash 以上の最新へ自動で切り替わる） */
+  const MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
   const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/';
   const KEY_NAME = 'gemini_api_key';
 
@@ -124,10 +125,11 @@
   /* モデルを順に試す。キーの問題（400/401/403）はモデルを変えても直らないので打ち切る */
   async function ask(apiKey, b64, mime, prompt, bottles, status, msg) {
     let firstErr = null, lastErr = null;
-    for (const model of MODELS) {
+    const viaRelay = !!relay(); /* 中継は自分で予備モデルに切り替えるので、アプリからは1回だけ（長めに待つ） */
+    for (const model of viaRelay ? ['auto'] : MODELS) {
       status(msg);
       try {
-        const text = await request(apiKey, model, b64, mime, prompt, { timeoutMs: 20000 });
+        const text = await request(apiKey, model, b64, mime, prompt, { timeoutMs: viaRelay ? 45000 : 20000 });
         const p = parseResult(text);
         if (!p.ok) { lastErr = new Error('parse:' + p.error); firstErr = firstErr || lastErr; continue; }
         const r = resolve(p.data, bottles); r.model = model; return r;
