@@ -45,8 +45,18 @@
     const prev = state.history.pop(); if (!prev) { if (state.view !== 'home') { state.view = 'home'; render(); return true; } return false; }
     Object.assign(state, prev); render(); if (hasDOM) window.scrollTo({ top: 0 }); return true;
   }
+  /* 表紙（年齢確認とホーム）は昼夜を問わず漆黒の地 */
+  function applyCover() {
+    const root = document.documentElement, ctx = seasonCtx();
+    const cover = !St.get(St.KEYS.age, null) ? 'gate' : state.view === 'home' ? 'home' : '';
+    /* 表紙と中のページの切替は一瞬で（地色のフェード中に文字が沈まないように） */
+    if ((root.dataset.cover || '') !== cover) { root.classList.add('cover-swap'); requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('cover-swap'))); }
+    if (cover) root.dataset.cover = cover; else delete root.dataset.cover;
+    const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = cover ? '#0B0A0C' : isNight() ? '#121014' : '#F7F3EE';
+    const issue = document.querySelector('.topbar .issue'); if (issue) issue.textContent = 'NO.' + (new Date().getMonth() + 1) + ' · ' + nameOf(SUI.SEASONS, ctx.season) + (ctx.daypart === 'night' ? 'の夜' : 'の昼');
+  }
   function render() {
-    if (!hasDOM) return; applyTheme();
+    if (!hasDOM) return; applyTheme(); applyCover();
     const main = document.getElementById('app'); if (!main) return;
     if (!St.get(St.KEYS.age, null)) { applyAccent(DEFAULT_ACC); main.innerHTML = views.gate(); document.querySelector('.tabbar').hidden = true; return; }
     document.querySelector('.tabbar').hidden = false;
@@ -97,36 +107,46 @@
     return { title: '赤として楽しむなら', text: '15〜18℃。室温が高い日は10分冷蔵庫へ。', tempC: [15, 18] };
   }
 
-  /* ---------- 年齢確認 ---------- */
-  views.gate = () => `<div class="view gate">
-    <div class="eyebrow">sui · 粋</div>
-    <h1>あなたは20歳以上ですか</h1>
-    <p class="law">20歳未満の者の飲酒は法律で禁止されています。このアプリは酒類の情報を扱います。</p>
-    <div class="btnrow"><button class="btn acc" data-act="age" data-val="yes">はい、20歳以上です</button><button class="btn ghost" data-act="age" data-val="no">いいえ</button></div>
-    ${state.ageDenied ? '<p class="law">20歳になったら、また。</p>' : ''}
-    <p class="warnings">妊娠中や授乳期の飲酒は、胎児・乳児の発育に悪影響を与えるおそれがあります。飲酒運転は法律で禁止されています。お酒は適量を。</p>
+  /* ---------- 年齢確認（表紙） ---------- */
+  const SEASON_EN = { spring: 'SPRING', summer: 'SUMMER', autumn: 'AUTUMN', winter: 'WINTER' };
+  views.gate = () => `<div class="view cover cover-gate">
+    <div class="cv-strip"><span>VOL. 01</span><span>WINE &amp; SAKE</span><span>${new Date().getFullYear()} ${SEASON_EN[E.seasonOf()] || ''}</span></div>
+    <div class="cg-stage">
+      <div class="cg-mast" aria-hidden="true">sui</div>
+      <span class="cg-kanji" aria-hidden="true">粋</span>
+      ${R.cover({ pour: true, label: 'グラスに注がれる赤ワイン' })}
+      <p class="cg-vert">撮るだけで、一杯の物語。</p>
+      <p class="cg-side"><span class="en">the colour of</span><span>酒の色で、<br>世界を知る。</span></p>
+    </div>
+    <div class="cg-foot">
+      <h1>あなたは20歳以上ですか</h1>
+      <div class="btnrow"><button class="btn brass" data-act="age" data-val="yes">はい、20歳以上です</button><button class="btn ghost" data-act="age" data-val="no">いいえ</button></div>
+      ${state.ageDenied ? '<p class="denied">20歳になったら、また。</p>' : ''}
+      <p class="law">20歳未満の者の飲酒は法律で禁止されています。このアプリは酒類の情報を扱います。</p>
+      <p class="warnings">妊娠中や授乳期の飲酒は、胎児・乳児の発育に悪影響を与えるおそれがあります。飲酒運転は法律で禁止されています。お酒は適量を。</p>
+    </div>
   </div>`;
 
-  /* ---------- ホーム ---------- */
+  /* ---------- ホーム（表紙） ---------- */
   views.home = () => {
-    const ctx = seasonCtx(), rs = St.records(), season = byId(SUI.SEASONS, ctx.season);
-    const acc = defaultAccent(); const lastRec = rs[0];
-    const quick = E.propose(Object.assign(E.defaults(), { mood: ctx.daypart === 'night' ? 'quiet' : 'refresh' }), { seed: new Date().getDate(), ctx });
+    const ctx = seasonCtx(), rs = St.records(), season = byId(SUI.SEASONS, ctx.season), night = ctx.daypart === 'night';
+    const lastRec = rs[0];
+    const quick = E.propose(Object.assign(E.defaults(), { mood: night ? 'quiet' : 'refresh' }), { seed: new Date().getDate(), ctx });
     const pick = quick.items[0];
-    return `<div class="view">
-      <div class="home-hero">
-        <div class="eyebrow">${esc(season.name)} · ${ctx.daypart === 'night' ? 'Night' : 'Day'}</div>
-        <h1>${rs.length ? '今日の一杯は、何色？' : '最初の一杯は、何色？'}</h1>
-        <button class="cupbtn" data-act="shoot" aria-label="撮る">${R.drop({ hue: lastRec ? recordHue(lastRec) : DEFAULT_ACC, size: 236, rim: true, night: isNight(), empty: !lastRec, label: '盃' })}<span class="cap">${lastRec ? '撮って、記録する' : '空のグラス。撮って、色をつける'}</span></button>
-        <p class="lead">${esc(season.line)}</p>
+    const feats = [['01', 'explore', '探す', `場所と気分で、${night ? '今夜' : '今日'}の一本を`], ['02', 'ladders', '階段', '日常の一本から、名酒へ'], ['03', 'calendar', '色暦', '飲んだ色が、一年の暦になる']];
+    return `<div class="view cover cover-home">
+      <section class="ch-hero">
+        ${R.cover({ hue: lastRec ? recordHue(lastRec) : null, label: lastRec ? '最近の一杯の色: ' + lastRec.name : 'スポットライトの中の赤ワイン' })}
+        <div class="ch-head"><span class="cv-kicker">${night ? 'TONIGHT’S COLOUR' : 'TODAY’S COLOUR'}</span><h1>${rs.length ? '今日の一杯は、<br>何色？' : '最初の一杯は、<br>何色？'}</h1></div>
+        <div class="ch-shoot"><button class="ch-shootbtn" data-act="shoot" aria-label="撮る">${R.icon('camera')}<span>撮る</span></button><p>ラベルを撮って、<br>一杯を記録する</p></div>
+      </section>
+      <div class="ch-season"><span class="en">Season</span><span>${esc(season.line)}</span></div>
+      ${pick ? `<div class="ch-tonight"><button class="ch-pick" data-act="card" data-id="${pick.bottle.id}">${dropOf(pick.bottle, 64, { night: true })}<span class="body"><span class="cv-kicker">${night ? '今夜' : '今日'}の${esc(nameOf(SUI.ROLES, pick.role))} · ${pick.bottle.kind === 'wine' ? 'WINE' : 'SAKE'}</span><span class="nm">${esc(pick.bottle.name)}</span><span class="why">${esc(pick.why)}</span><span class="srv">${esc(serveLine(pick.serve))}</span></span></button><button class="linkbtn" data-act="nav" data-view="explore">条件を変えて探す</button></div>` : ''}
+      <div class="ch-features">
+        <div class="ch-sechead"><h2>特集</h2><span class="cv-kicker">FEATURES</span></div>
+        ${feats.map(([n, v, t, d]) => `<button class="ch-feat" data-act="nav" data-view="${v}"><span class="no">${n}</span><span class="tx"><span class="t">${t}</span><span class="d">${d}</span></span>${R.icon('next')}</button>`).join('')}
       </div>
-      <div class="home-grid">
-        <button class="opt" data-act="nav" data-view="explore">${R.icon('compass')}<span class="t">探す</span><span class="d">場所と気分で</span></button>
-        <button class="opt" data-act="nav" data-view="ladders">${R.icon('stairs')}<span class="t">階段</span><span class="d">日常から名酒</span></button>
-        <button class="opt" data-act="nav" data-view="calendar">${R.icon('drop')}<span class="t">色暦</span><span class="d">飲んだ色</span></button>
-      </div>
-      ${rs.length ? `<div class="section">${sectionHead('最近の色', 'Recent')}<div class="recent-row">${rs.slice(0, 10).map(r => `<button class="drop-btn" data-act="record" data-id="${r.id}">${R.drop({ hue: recordHue(r), size: 48, night: isNight() })}<span class="n">${esc(r.name)}</span></button>`).join('')}</div></div>` : `<div class="card tint"><p class="small">最初の一杯を記録すると、ここが色づく。写真を撮るか、名前で探して記録を。</p><div class="btnrow" style="margin-top:10px"><button class="btn sm ghost" data-act="nav" data-view="search">名前で探す</button></div></div>`}
-      ${pick ? `<div class="section">${sectionHead(ctx.daypart === 'night' ? '今夜なら' : '今日なら', 'Tonight')}<button class="proposal" data-act="card" data-id="${pick.bottle.id}"><span class="sw">${dropOf(pick.bottle, 72)}</span><span class="body"><span class="row"><span class="role honmei">${esc(nameOf(SUI.ROLES, pick.role))}</span><span class="small muted">${esc(KINDNAME[pick.bottle.kind])}</span></span><span class="nm ${pick.bottle.kind}">${esc(pick.bottle.name)}</span><span class="why">${esc(pick.why)}</span><span class="srv">${esc(serveLine(pick.serve))}</span></span></button><button class="linkbtn" data-act="nav" data-view="explore">条件を変えて探す</button></div>` : ''}
+      ${rs.length ? `<div class="ch-recent"><div class="ch-sechead"><h2>最近の色</h2><span class="cv-kicker">RECENT</span></div><div class="recent-row">${rs.slice(0, 10).map(r => `<button class="drop-btn" data-act="record" data-id="${r.id}">${R.drop({ hue: recordHue(r), size: 48, night: true })}<span class="n">${esc(r.name)}</span></button>`).join('')}</div></div>` : `<div class="ch-empty"><p>最初の一杯を記録すると、ここが色づく。写真を撮るか、名前で探して記録を。</p><button class="btn sm ghost" data-act="nav" data-view="search">名前で探す</button></div>`}
     </div>`;
   };
 

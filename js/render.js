@@ -362,6 +362,7 @@ ${glow}
     heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
     refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
     back: '<path d="M15 5l-7 7 7 7"/>',
+    next: '<path d="M9 5l7 7-7 7"/>',
     check: '<path d="M5 12l5 5 9-10"/>',
     flip: '<path d="M4 8h12l-3-3"/><path d="M20 16H8l3 3"/>',
     thermo: '<path d="M10 4a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/>',
@@ -384,5 +385,65 @@ ${glow}
   };
   function icon(name, cls) { return `<svg class="${cls || 'ic'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.drop}</svg>`; }
 
-  SUI.render = { glass, drop, pour, bottle, thermo, tasteBars, quadrant, ladder, labelAnatomy, moodRing, icon, PROFILES, esc };
+  /* 表紙（漆黒の地）のグラス。光は液体だけが放つ。opts: {hue, pour, label}
+     pour=true: 斜め上から注ぐ流れ（年齢確認の表紙）／false: スポットライトの中で揺れる液面（ホームの表紙） */
+  function cover(opts) {
+    opts = opts || {};
+    const hue = C.isHex(opts.hue) ? opts.hue : '#B21A36', id = uid('cv');
+    const pale = C.luminance(hue) > 0.6;
+    const hi = pale ? C.mix(hue, '#FFFFFF', 0.5) : C.mix(hue, '#FFC08A', 0.5);
+    const lo = pale ? C.mix(hue, '#7A6A3A', 0.55) : C.mix(hue, '#000000', 0.68);
+    const halo = pale ? C.mix(hue, '#D9B870', 0.6) : hue;
+    const surf = C.mix(hi, '#FFFFFF', 0.12), edge = C.mix(hi, '#FFFFFF', 0.25), spark = C.mix(hue, '#FFFFFF', 0.75), dropC = C.mix(hue, '#FFFFFF', 0.15);
+    const pour = !!opts.pour, cx = pour ? 195 : 250;
+    /* 器の内側（縁 y=150・底 y=356）。液体はこの形で切り抜く */
+    const bowl = `M${cx - 75} 150 C ${cx - 78} 250 ${cx - 67} 334 ${cx} 356 C ${cx + 67} 334 ${cx + 78} 250 ${cx + 75} 150`;
+    const defs = `<radialGradient id="${id}h" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="${halo}" stop-opacity="0.58"/><stop offset="0.55" stop-color="${halo}" stop-opacity="0.18"/><stop offset="1" stop-color="${halo}" stop-opacity="0"/></radialGradient>
+<linearGradient id="${id}l" x1="0" y1="0" x2="0.2" y2="1"><stop offset="0" stop-color="${hi}"/><stop offset="0.35" stop-color="${hue}"/><stop offset="1" stop-color="${lo}"/></linearGradient>
+<linearGradient id="${id}e" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${edge}" stop-opacity="0.9"/><stop offset="0.22" stop-color="${edge}" stop-opacity="0"/><stop offset="0.78" stop-color="${edge}" stop-opacity="0"/><stop offset="1" stop-color="${edge}" stop-opacity="0.7"/></linearGradient>
+<clipPath id="${id}c"><path d="${bowl} Z"/></clipPath>
+<filter id="${id}b" filterUnits="userSpaceOnUse" x="-60" y="400" width="510" height="140"><feGaussianBlur stdDeviation="14"/></filter>
+<filter id="${id}s" filterUnits="userSpaceOnUse" x="100" y="440" width="300" height="60"><feGaussianBlur stdDeviation="3"/></filter>`;
+    /* 液面: 注ぐ表紙は水平（y=262）、ホームは揺れて右上がりに傾く（左 266 → 右 250） */
+    const yl = pour ? 262 : 266, yr = pour ? 262 : 250, ym = (yl + yr) / 2, rot = f1(Math.atan2(yr - yl, 200) * 180 / Math.PI);
+    const body = `M${cx - 100} ${yl} L ${cx + 100} ${yr} L ${cx + 100} 380 L ${cx - 100} 380 Z`;
+    const ex = f1(70 * Math.cos(rot * Math.PI / 180)), ey = f1(70 * Math.sin(rot * Math.PI / 180));
+    const liquid = `<g clip-path="url(#${id}c)">
+<path d="${body}" fill="url(#${id}l)"/>
+<path d="${body}" fill="url(#${id}e)" opacity="0.6"/>
+<ellipse cx="${cx}" cy="${ym}" rx="70" ry="8.5" transform="rotate(${rot} ${cx} ${ym})" fill="${surf}" opacity="0.92"/>
+<ellipse cx="${cx}" cy="${ym}" rx="40" ry="3.5" transform="rotate(${rot} ${cx} ${ym})" fill="${spark}" opacity="0.5"/>
+<path d="M${f1(cx - ex)} ${f1(ym - ey)} A 70 8.5 ${rot} 0 1 ${f1(cx + ex)} ${f1(ym + ey)}" fill="none" stroke="${edge}" stroke-width="2" stroke-linecap="round"/>
+${pour ? '' : `<path d="M${cx - 74} 232 C ${cx - 50} 214 ${cx + 44} 206 ${cx + 74} 220" fill="none" stroke="${hue}" stroke-opacity="0.35" stroke-width="5" stroke-linecap="round"/>`}
+</g>`;
+    const splash = pour ? `<path d="M${cx - 19} 258 C ${cx - 13} 248 ${cx - 5} 244 ${cx + 2} 246 C ${cx + 9} 244 ${cx + 17} 249 ${cx + 21} 258" fill="none" stroke="${surf}" stroke-width="2" stroke-linecap="round"/>
+<circle cx="${cx - 27}" cy="236" r="3.2" fill="${dropC}"/><circle cx="${cx + 27}" cy="228" r="2.4" fill="${dropC}"/><circle cx="${cx - 13}" cy="214" r="1.8" fill="${dropC}"/><circle cx="${cx + 45}" cy="246" r="1.6" fill="${dropC}"/><circle cx="${cx - 43}" cy="250" r="1.4" fill="${dropC}"/>
+<circle cx="${cx - 28}" cy="235" r="1" fill="${spark}"/><circle cx="${cx + 26}" cy="227" r="0.8" fill="${spark}"/>` : '';
+    const stream = pour ? `<linearGradient id="${id}p" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${lo}"/><stop offset="0.5" stop-color="${hue}"/><stop offset="1" stop-color="${hi}"/></linearGradient>` : `<linearGradient id="${id}r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2EBDD" stop-opacity="0"/><stop offset="0.2" stop-color="#F2EBDD" stop-opacity="0.11"/><stop offset="1" stop-color="#F2EBDD" stop-opacity="0"/></linearGradient>`;
+    const backdrop = pour ? `<ellipse cx="${cx}" cy="300" rx="190" ry="170" fill="url(#${id}h)"/>` : `<path d="M${cx - 40} -10 L ${cx + 40} -10 L ${cx + 110} 470 L ${cx - 110} 470 Z" fill="url(#${id}r)"/>
+<ellipse cx="${cx}" cy="300" rx="170" ry="180" fill="url(#${id}h)"/>`;
+    const pourPath = pour ? `<path d="M352 -10 C 330 70 236 130 ${cx + 5} ${yl} L ${cx - 1} ${yl} C 222 126 316 64 336 -10 Z" fill="url(#${id}p)"/>
+<path d="M346 -10 C 326 66 238 128 ${cx + 4} ${yl - 4}" fill="none" stroke="${spark}" stroke-opacity="0.45" stroke-width="1.2"/>` : '';
+    const label = esc(opts.label || (pour ? 'グラスに注がれる酒' : 'スポットライトの中のグラス'));
+    return `<svg class="cover-art" viewBox="0 0 390 ${pour ? 540 : 500}" preserveAspectRatio="${pour ? 'xMidYMax' : 'xMaxYMax'} meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}"><defs>${defs}${stream}</defs>
+${backdrop}
+<line x1="0" y1="470" x2="390" y2="470" stroke="#F2EBDD" stroke-opacity="0.10" stroke-width="1"/>
+<ellipse cx="${cx}" cy="474" rx="140" ry="12" fill="${halo}" opacity="0.35" filter="url(#${id}b)"/>
+<ellipse cx="${cx}" cy="468" rx="60" ry="6" fill="#000000" opacity="0.6" filter="url(#${id}s)"/>
+${pourPath}
+${liquid}
+${splash}
+<path d="${bowl}" fill="none" stroke="#F2EBDD" stroke-opacity="0.55" stroke-width="1.4"/>
+<ellipse cx="${cx}" cy="150" rx="75" ry="9" fill="none" stroke="#F2EBDD" stroke-opacity="0.6" stroke-width="1.2"/>
+<path d="M${cx - 62} 168 C ${cx - 65} 232 ${cx - 59} 290 ${cx - 39} 326" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
+<path d="M${cx - 55} 176 C ${cx - 56} 206 ${cx - 55} 226 ${cx - 52} 240" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M${cx + 63} 180 C ${cx + 65} 230 ${cx + 60} 280 ${cx + 45} 316" fill="none" stroke="#FFFFFF" stroke-opacity="0.22" stroke-width="2" stroke-linecap="round"/>
+<path d="M${cx - 3} 356 L ${cx - 2.4} 460 L ${cx + 2.4} 460 L ${cx + 3} 356 Z" fill="#F2EBDD" fill-opacity="0.28"/>
+<line x1="${cx - 1}" y1="360" x2="${cx - 0.6}" y2="458" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="0.8"/>
+<ellipse cx="${cx}" cy="464" rx="58" ry="7" fill="none" stroke="#F2EBDD" stroke-opacity="0.5" stroke-width="1.2"/>
+<path d="M${cx - 45} 466 C ${cx - 25} 470 ${cx + 25} 470 ${cx + 45} 466" fill="none" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="1"/>
+</svg>`;
+  }
+
+  SUI.render = { glass, drop, pour, bottle, thermo, tasteBars, quadrant, ladder, labelAnatomy, moodRing, icon, cover, PROFILES, esc };
 })(globalThis);
