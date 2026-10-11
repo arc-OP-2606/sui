@@ -164,11 +164,40 @@
   };
 
   /* ---------- 検索 ---------- */
+  /* 収録外の名前: AI に名前で問い合わせる（写真なし）。答えは「AIで調べた結果（要確認）」のカードで出す */
+  function notFound(q) {
+    const canAI = Rec.available(St.getRaw(St.KEYS.apiKey, '')), lk = state.lookup && state.lookup.q === Rec.cleanName(q) ? state.lookup : null, busy = lk && lk.status === 'working';
+    return `<div class="card flat stack">
+      <p class="muted">「${esc(q)}」は収録にありません。</p>
+      ${busy ? `<p class="status-line">${esc(lk.msg || 'AIが調べています')}</p>` : ''}
+      ${lk && lk.status === 'none' ? '<p class="small">AIでも、この名前の銘柄を確かめられませんでした。表記（かな・英字・蔵の名前）を変えるか、ラベルを撮ってください。</p>' : ''}
+      ${lk && lk.status === 'error' ? `<p class="small">${esc(lk.error)}</p>` : ''}
+      <div class="btnrow">${canAI ? `<button class="btn sm acc" data-act="ai-name"${busy ? ' disabled' : ''}>${R.icon('spark')}AIで調べる</button>` : ''}<button class="btn sm ghost" data-act="record-manual">この名前で記録する</button></div>
+      ${canAI ? '<p class="small faint">AIの答えは要確認。蔵の歴史や受賞歴は表示しません。</p>' : ''}
+    </div>`;
+  }
+  function refreshSearch() {
+    if (!hasDOM || state.view !== 'search') return; const list = document.querySelector('.result-list'); if (!list) return;
+    const tmp = document.createElement('div'); tmp.innerHTML = views.search(); list.innerHTML = tmp.querySelector('.result-list').innerHTML;
+  }
+  async function lookupName(raw) {
+    const q = Rec.cleanName(raw); if (!q || (state.lookup && state.lookup.status === 'working')) return;
+    state.lookup = { status: 'working', q, msg: 'AIが調べています' }; refreshSearch();
+    const here = () => state.view === 'search' && Rec.cleanName(state.searchQ) === q;
+    try {
+      const r = await Rec.runText(St.getRaw(St.KEYS.apiKey, ''), q, E.all(), m => { if (state.lookup && state.lookup.q === q) state.lookup.msg = m; const el = document.querySelector('.result-list .status-line'); if (el && here()) el.textContent = m; });
+      state.lookup = r.kind === 'none' ? { status: 'none', q } : null;
+      if (!here()) return; /* 待つ間に別の画面・別の名前へ移ったら、結果で画面を奪わない */
+      if (r.kind === 'db') go('card', { current: r.bottle.id, similarOpen: false, wowFlipped: false });
+      else if (r.kind === 'ai') go('aicard', { ai: r });
+      else refreshSearch();
+    } catch (e) { state.lookup = { status: 'error', q, error: Rec.errorMessage(e) }; if (here()) refreshSearch(); }
+  }
   views.search = () => {
     const q = state.searchQ, hits = q ? E.search(q, 12) : [];
     return `<div class="view"><div class="eyebrow">Search</div><h1>名前で探す</h1>
       <div class="search-box">${R.icon('search')}<input id="q" type="search" placeholder="銘柄・蔵・産地（かな・英字）" value="${esc(q)}" autocomplete="off" autofocus></div>
-      <div class="result-list">${hits.length ? hits.map(b => `<button class="result" data-act="card" data-id="${b.id}"><span class="sw" style="background:${b.hue}"></span><span><span class="t">${esc(b.name)}</span><br><span class="d">${esc(b.producer)} · ${esc(b.sub)}</span></span></button>`).join('') : q ? `<div class="card flat stack"><p class="muted">収録にありません。</p><button class="btn sm ghost" data-act="record-manual">この名前で記録する</button></div>` : `<p class="small muted">例: 獺祭、Kubota、ペンフォールズ、新潟</p>`}</div>
+      <div class="result-list">${hits.length ? hits.map(b => `<button class="result" data-act="card" data-id="${b.id}"><span class="sw" style="background:${b.hue}"></span><span><span class="t">${esc(b.name)}</span><br><span class="d">${esc(b.producer)} · ${esc(b.sub)}</span></span></button>`).join('') : q ? notFound(q) : `<p class="small muted">例: 獺祭、Kubota、ペンフォールズ、新潟</p>`}</div>
     </div>`;
   };
 
@@ -236,7 +265,7 @@
     return `<div class="view">
       <div class="hero-card">
         <div class="glass">${R.glass({ hue, size: 180, night: isNight(), vessel: d.kind === 'sake' ? 'guinomi' : undefined, glass: d.kind === 'sake' ? undefined : (g.tempC && g.tempC[0] <= 8 ? 'flute' : C.luminance(hue) > 0.5 ? 'white' : 'bordeaux') })}</div>
-        <span class="tag warn">収録外 · AIの読み取り（要確認）</span>
+        <span class="tag warn">収録外 · ${a.source === 'name' ? 'AIで調べた結果' : 'AIの読み取り'}（要確認）</span>
         <div class="name ${d.kind === 'sake' ? 'sake' : 'wine'}">${esc(name)}</div>
         ${d.nameEn && d.nameJa ? `<div class="name-ja">${esc(d.nameEn)}</div>` : ''}
         <div class="maker">${esc([d.producer, d.region || d.country].filter(Boolean).join('　'))}</div>
@@ -244,7 +273,7 @@
         ${a.image ? `<img src="${a.image}" alt="撮った写真" style="width:96px;border-radius:12px;border:1px solid var(--line)">` : ''}
       </div>
       <div class="card stack">
-        <dl class="kv">${d.sub ? `<dt>種類</dt><dd>${esc(d.sub)}</dd>` : ''}${d.grapesOrRice ? `<dt>${d.kind === 'sake' ? '酒米' : '品種'}</dt><dd>${esc(d.grapesOrRice)}</dd>` : ''}${d.abv ? `<dt>度数</dt><dd>${esc(d.abv)}%</dd>` : ''}<dt>${d.kind === 'sake' ? '製造年月' : 'ヴィンテージ'}</dt><dd><input id="vintage" type="text" value="${esc(d.vintage || '')}" placeholder="読み取れず。手で入力" style="font:inherit;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;width:12em;outline:none"></dd></dl>
+        <dl class="kv">${d.sub ? `<dt>種類</dt><dd>${esc(d.sub)}</dd>` : ''}${d.grapesOrRice ? `<dt>${d.kind === 'sake' ? '酒米' : '品種'}</dt><dd>${esc(d.grapesOrRice)}</dd>` : ''}${d.abv ? `<dt>度数</dt><dd>${esc(d.abv)}%</dd>` : ''}<dt>${d.kind === 'sake' ? '製造年月' : 'ヴィンテージ'}</dt><dd><input id="vintage" type="text" value="${esc(d.vintage || '')}" placeholder="${a.source === 'name' ? '手で入力' : '読み取れず。手で入力'}" style="font:inherit;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;width:12em;outline:none"></dd></dl>
         ${d.notes.length ? `<ul class="notes">${d.notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
         ${d.readText ? `<p class="small faint">読めた文字: ${esc(d.readText.slice(0, 120))}</p>` : ''}
       </div>
@@ -453,6 +482,7 @@
       case 'record-bottle': { const b = E.byId(el.dataset.id); openSheet({ name: b.name, bottleId: b.id, kind: b.kind, image: state.lastImage || null, band: b.kind === 'sake' ? b.serve.best : null }); state.lastImage = null; break; }
       case 'record-ai': { const d = state.ai.data; const v = (document.getElementById('vintage') || {}).value; openSheet({ name: (d.nameJa || d.nameEn || '') + (v ? ' ' + v : ''), kind: d.kind, hue: C.isHex(d.colorHex) ? d.colorHex : null, image: state.ai.image, ai: { producer: d.producer, sub: d.sub, vintage: v || d.vintage } }); break; }
       case 'record-manual': openSheet({ name: state.searchQ }); break;
+      case 'ai-name': lookupName(state.searchQ); break;
       case 'explore-from': { const b = E.byId(el.dataset.id); state.sel = { kind: b.kind, place: b.tags.place[0] || 'home', purpose: b.tags.purpose.includes('daily') ? 'daily' : 'special', sub: b.tags.purpose.find(p => p !== 'daily' && p !== 'special') || null, mood: b.tags.mood[0] || 'cozy', food: b.tags.food[0] || 'none', budget: b.price.tier === 'daily' ? 'b3000' : b.price.tier === 'mid' ? 'b8000' : 'bmax' }; state.touched = true; state.seed++; go('proposals'); break; }
       case 'step': go('explore', { step: Number(el.dataset.i) }); break;
       case 'later': if (state.step < STEPS.length - 1) go('explore', { step: state.step + 1 }); else go('proposals'); break;
