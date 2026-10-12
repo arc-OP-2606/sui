@@ -85,9 +85,11 @@
     const parts = [nameOf(SUI.SEASONS, ctx.season) + (ctx.daypart === 'night' ? 'の夜' : 'の昼'), nameOf(SUI.PLACES, sel.place), sel.purpose === 'special' ? (nameOf(SUI.SUBPURPOSES, sel.sub) || '特別な日') : '日常', nameOf(SUI.MOODS, sel.mood), sel.food && sel.food !== 'none' ? nameOf(SUI.FOODS, sel.food) : null];
     return parts.filter(Boolean).join('・');
   }
+  /* 名前は「・」や空白の位置でだけ折り返す（「ルージ／ュ」「ボルド／ー」のような語の途中の折り返しを防ぐ） */
+  function segs(s) { return esc(s).split(/(?<=[・\s　])/).map(p => `<span class="nseg">${p}</span>`).join(''); }
   function principle(sel, ctx) {
     if (sel.food === 'nabe') return '出汁には、温度を合わせる。ぬる燗か、冷やしすぎない白。';
-    if (sel.food === 'sashimi') return '生の魚には、香りを立てすぎない。きりっと冷やして。';
+    if (sel.food === 'sashimi') return '生の魚には、香りを立てすぎない。キレで脂を流す。'; /* 温度は一本ごとに違う（ぬる燗が最良の酒もある）ので、ここでは言わない */
     if (sel.food === 'meat') return 'タレには甘みと渋み、塩には酸とキレ。';
     if (sel.food === 'western') return 'バターと旨みには、酸か渋みをぶつける。';
     if (sel.food === 'asian') return '香辛料には、甘みと泡が逃げ道になる。';
@@ -216,7 +218,7 @@
       <div class="hero-card">
         <div class="glass">${R.glass(Object.assign({ hue: b.hue, size: 200, seed: b.id.length, night: isNight() }, glassFor(b)))}</div>
         ${nameHtml(b)}
-        <div class="maker">${esc(b.producer)}　${esc(b.region)}</div>
+        <div class="maker">${segs(b.producer)}　${segs(b.region)}</div>
         <p class="one">${esc(b.one)}</p>
         <div class="pricebar"><span class="num">${esc(priceText(b))}</span><span>${esc(nameOf(SUI.TIERS, b.price.tier))} · 目安</span></div>
         ${b.price.note ? `<p class="small muted">${esc(b.price.note)}</p>` : ''}
@@ -260,7 +262,7 @@
     if (k === 'wow') return `<div class="panel">${H('へぇ', 'Did you know')}<span class="tag src">蔵DB確認済み</span><div class="wow ${state.wowFlipped ? 'flipped' : ''}" data-act="flip" role="button" tabindex="0"><div class="face front"><div class="q">この一本の、意外な話。<br><span class="small muted">タップしてめくる</span></div></div><div class="face back"><p>${esc(b.wow)}</p></div></div></div>`;
     if (k === 'ladder') {
       const steps = E.ladder(b); const i = steps.findIndex(s => s.bottle.id === b.id); const next = steps[i + 1];
-      return `<div class="panel card">${H('階段', 'Ladder')}<p class="small muted">${esc(b.producer)}の、日常酒から旗艦まで。</p><div class="ladder-wrap">${R.ladder(steps, b.id)}</div><div class="steps-row">${steps.map(s => `<button class="ladder-step" data-act="card" data-id="${s.bottle.id}"><span class="sw" style="background:${s.bottle.hue}"></span><span class="t">${esc(s.bottle.name)}${s.bottle.id === b.id ? '<span class="small muted">　いまここ</span>' : ''}</span><span class="p">${esc(priceText(s.bottle))}</span></button>`).join('')}</div>${next ? `<button class="btn sm acc" data-act="card" data-id="${next.bottle.id}">次の一段、${esc(next.bottle.name)}を見る</button>` : steps.length > 1 ? '<p class="small muted">ここが、この造り手の頂。</p>' : ''}</div>`;
+      return `<div class="panel card">${H('階段', 'Ladder')}<p class="small muted">${esc(b.producer)}の、日常酒から旗艦まで。</p><div class="ladder-wrap">${R.ladder(steps, b.id)}</div><div class="steps-row">${steps.map(s => `<button class="ladder-step" data-act="card" data-id="${s.bottle.id}"><span class="sw" style="background:${s.bottle.hue}"></span><span class="t">${segs(s.bottle.name)}${s.bottle.id === b.id ? '<span class="small muted">　いまここ</span>' : ''}</span><span class="p">${esc(priceText(s.bottle))}</span></button>`).join('')}</div>${next ? `<button class="btn sm acc" data-act="card" data-id="${next.bottle.id}">次の一段、${segs(next.bottle.name)}を見る</button>` : steps.length > 1 ? '<p class="small muted">ここが、この造り手の頂。</p>' : ''}</div>`;
     }
     if (k === 'label') return `<div class="panel card">${H('ラベルの読み方', 'Label')}<div class="anatomy">${R.labelAnatomy(b.kind)}</div><ol class="notes" style="counter-reset:n">${SUI.ANATOMY[b.kind].map(a => `<li><b>${a.n}. ${esc(a.name)}</b>　${esc(a.d)}</li>`).join('')}</ol>${b.vintageHint ? `<p class="small muted">${esc(b.vintageHint)}</p>` : ''}<p class="small muted">見た目: ${esc(b.cues)}</p></div>`;
     return '';
