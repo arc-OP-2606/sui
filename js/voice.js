@@ -125,7 +125,6 @@ ${hist || '（最初の発話）'}`;
   function setRead(v) { if (St()) St().set('sui.voice.read.v1', !!v); }
 
   /* ---------- 話す（TTS） ---------- */
-  let audioEl = null;
   async function synth(text) {
     const R = Rec().relay(); if (!R) throw new Error('no-relay');
     const body = { contents: [{ parts: [{ text: `次の文を、落ち着いた温かい声で、少しゆっくり自然に読む: ${text}` }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } } } } };
@@ -138,30 +137,59 @@ ${hist || '（最初の発話）'}`;
     return 'data:audio/wav;base64,' + wavBase64(pcm, rate);
   }
   /* 返事を文ごとに分け、最初の文を先に鳴らしながら次を作る */
-  function chunks(text) { const parts = String(text).split(/(?<=[。！？!?])/).map(t => t.trim()).filter(Boolean); const out = []; parts.forEach(pt => { if (out.length && (out[out.length - 1] + pt).length < 34) out[out.length - 1] += pt; else out.push(pt); }); return out.length ? out : [String(text)]; }
+  function chunks(text) { const parts = String(text).split(/(?<=[。！？!?])/).map(t => t.trim()).filter(Boolean); const out = []; parts.forEach(pt => { if (out.length && (out[out.length - 1] + pt).length < 34) out[out.length - 1] += pt; else out.push(pt); });
+    /* 声ができるまでの待ちは文の長さにほぼ比例する（2026-10-12 計測: 28字で約4.5秒）。最初が長いときは最初の読点で切り、早く鳴らし始める */
+    if (out.length && out[0].length > 18) { const i = out[0].indexOf('、'); if (i >= 4 && i <= 16) out.splice(0, 1, out[0].slice(0, i + 1), out[0].slice(i + 1)); }
+    return out.length ? out : [String(text)]; }
   /* 読み上げ用に記号を言葉へ（画面の文字はそのまま） */
   function forSpeech(t) { return String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、'); }
   let speakGen = 0;
   async function speak(text, onStart) {
-    const gen = ++speakGen; const cs = chunks(forSpeech(text)); let next = synth(cs[0]);
+    const gen = ++speakGen; problemNow = ''; const cs = chunks(forSpeech(text)); const jobs = [];
+    /* 最初の2つは同時に作り始め、i 番目を鳴らし始めたら i+2 番目を作る（文と文のあいだを空けない） */
+    const job = i => { if (i < cs.length && !jobs[i]) { jobs[i] = synth(cs[i]); jobs[i].catch(() => {}); } return jobs[i]; };
+    job(0); job(1);
     for (let i = 0; i < cs.length; i++) {
-      let url; try { url = await next; } catch (e) { return false; }
+      let url; try { url = await job(i); } catch (e) { if (gen === speakGen) problemNow = 'synth'; return false; }
       if (gen !== speakGen) return false;
-      next = i + 1 < cs.length ? synth(cs[i + 1]) : null;
+      job(i + 2);
       if (i === 0 && onStart) onStart();
-      await play(url); if (gen !== speakGen) return false;
+      const ok = await play(url); if (gen !== speakGen) return false;
+      if (!ok) { problemNow = 'play'; return false; }
     }
     return true;
   }
   const FILLERS = ['assets/voice/filler-1.m4a', 'assets/voice/filler-2.m4a', 'assets/voice/filler-3.m4a'];
   function filler() { return play(FILLERS[Math.floor(Math.random() * FILLERS.length)]); }
-  function play(dataUrl) {
-    return new Promise(res => { if (!hasDOM) return res(); halt(); audioEl = new Audio(dataUrl); audioEl.onended = () => { audioEl = null; res(); }; audioEl.onerror = () => { audioEl = null; res(); }; audioEl.play().catch(() => { audioEl = null; res(); }); });
+  /* 鳴らす: audio 要素は1つを使い回す。Safari（Mac・iPhone）は「ボタンを押した瞬間に一度鳴らした要素」でないと、
+     声ができあがった数秒後に鳴らせない。だからボタンの click の中で unlock() を同期で呼び、無音を一度鳴らしておく。
+     navigator.audioSession を playback にすると、iPhone の消音（マナーモード）でも鳴る（iOS 17 以降の Safari・アプリ内表示） */
+  const SILENT = 'data:audio/wav;base64,' + wavBase64(new Int16Array(480), 24000);
+  let el = null, pending = null, unlocked = false, unlockGen = 0, problemNow = '';
+  function element() { if (!el) { el = new Audio(); el.preload = 'auto'; try { el.setAttribute('playsinline', ''); } catch (e) { /* ignore */ } } return el; }
+  function unlock() {
+    if (!hasDOM) return;
+    try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
+    if (unlocked || pending) return;
+    const a = element(), g = ++unlockGen;
+    try { a.src = SILENT; const p = a.play(); if (p && p.then) p.then(() => { unlocked = true; if (g === unlockGen && !pending) a.pause(); }, () => {}); } catch (e) { /* ignore */ }
+  }
+  function play(url) {
+    return new Promise(res => {
+      if (!hasDOM) return res(true);
+      halt(); unlockGen++;
+      const a = element();
+      const fin = ok => { if (pending !== fin) return; pending = null; a.onended = a.onerror = null; res(ok); };
+      pending = fin;
+      a.onended = () => fin(true); a.onerror = () => fin(false);
+      try { a.src = url; const p = a.play(); if (p && p.catch) p.catch(() => fin(false)); } catch (e) { fin(false); }
+    });
   }
   /* 鳴っている音だけ止める（play が次の文を鳴らすときに使う。speak の世代は進めない） */
-  function halt() { if (audioEl) { try { audioEl.pause(); } catch (e) { /* ignore */ } audioEl = null; } }
+  function halt() { if (pending) { const f = pending; try { el.pause(); } catch (e) { /* ignore */ } f(true); } }
   function stopSpeaking() { speakGen++; halt(); }
-  function speaking() { return !!audioEl; }
+  function speaking() { return !!pending; }
+  function problem() { return problemNow; } /* 直前の speak が失敗した理由: 'synth'（声を作れない）／'play'（鳴らせない）／''（成功・止めた） */
 
-  SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, filler, chunks, play, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
+  SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, filler, chunks, play, unlock, problem, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
 })(globalThis);

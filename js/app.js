@@ -496,7 +496,7 @@
     if (!host) { host = document.createElement('div'); host.id = 'voice'; document.body.appendChild(host); }
     const c = voiceCtx(); const ok = AI() && AI().ok(); const consent = AI() && AI().consent(); const mic = V() && V().supported(); const read = V().readOn();
     const title = c.bottle ? `${c.bottle.name} について` : (c.sel && c.sel.place ? `${nameOf(SUI.PLACES, c.sel.place)}で、今夜の一本` : '今夜の一本');
-    const status = { listening: '聞いています…話し終わったら、もう一度マイクを押す', thinking: '考えています', speaking: '読み上げています' }[v.busy] || '';
+    const status = { listening: '聞いています…話し終わったら、もう一度マイクを押す', thinking: '考えています', preparing: '声を用意しています…', speaking: '読み上げています' }[v.busy] || '';
     const free = ok && consent, thinking = v.busy === 'thinking';
     const turns = v.turns.map(t => t.role === 'user' ? `<div class="vbubble user">${esc(t.text)}</div>` : `<div class="vbubble sui">${esc(t.text)}${t.source ? `<span class="tag src">${esc(t.source)}</span>` : ''}</div>${t.picks && t.picks.length ? `<div class="vpicks">${t.picks.map(p => p.bottle ? `<button class="result" data-act="voice-pick" data-id="${p.bottle.id}"><span class="sw" style="background:${p.bottle.hue}"></span><span><span class="t">${esc(p.bottle.name)}</span><br><span class="d">${esc(p.serve)}</span></span></button>` : `<div class="result"><span class="sw" style="background:var(--bg2)"></span><span><span class="t">${esc(p.name)}</span><br><span class="d">${esc(p.serve)}　<span class="tag src est">推定</span></span></span></div>`).join('')}</div>` : ''}${t.staffLine ? `<div class="staff-card"><div class="eyebrow">店員に見せる</div><div class="big">${esc(t.staffLine)}</div></div>` : ''}`).join('');
     host.innerHTML = `<div class="voice-back" data-act="voice-close"><div class="voice" data-stop="1">
@@ -505,7 +505,7 @@
       <div class="vhint"><span>イヤホンで聞くのがおすすめ。店では周りに聞こえないように。</span><button class="vread" data-act="voice-read" aria-pressed="${read}">${read ? '読み上げ オン' : '読み上げ オフ'}</button></div>
       <div class="vbubbles">${turns || '<p class="small muted">聞きたいことのボタンを押すと、sui が答えます。文字や声で自由に聞くこともできます。</p>'}</div>
       ${v.err ? `<p class="small verr">${esc(v.err)}</p>` : ''}
-      ${status ? `<div class="vstatus">${esc(status)}${v.busy === 'speaking' ? '<button class="linkbtn" data-act="voice-stop">止める</button>' : ''}</div>` : (v.lastReply && read && ok ? '<div class="vstatus"><button class="linkbtn" data-act="voice-replay">もう一度聞く</button></div>' : '')}
+      ${status ? `<div class="vstatus">${esc(status)}${v.busy === 'speaking' || v.busy === 'preparing' ? '<button class="linkbtn" data-act="voice-stop">止める</button>' : ''}</div>` : (v.lastReply && read && ok ? '<div class="vstatus"><button class="linkbtn" data-act="voice-replay">もう一度聞く</button></div>' : '')}
       <div class="vquick">${V().topics(c).map(t => `<button class="chip" data-act="voice-q" data-q="${t.id}"${thinking ? ' disabled' : ''}>${esc(t.label)}</button>`).join('')}</div>
       ${!ok ? '<p class="small muted">文字や声で自由に聞くには、読み取りの設定（中継サーバー）が必要です。上のボタンはそのまま使えます。</p>' : !consent ? '<div class="card tint stack"><p class="small">文字や声で自由に聞くときは、聞いた内容と、あなたの色暦（最近の記録・言葉）を sui の中継サーバー経由で Google Gemini に送って答えます。声は保存されません。上のボタンは収録データから答えるので、許可しなくても使えます。</p><button class="btn sm acc" data-act="ai-consent">許可する</button></div>' : ''}
       <div class="vinput">
@@ -520,9 +520,13 @@
   /* 答えを読み上げる（設定がオンで、中継サーバーがあるときだけ。文字は先に出ている） */
   async function voiceSay(v, text) {
     if (!(V().readOn() && AI() && AI().ok())) { if (state.voice === v) { v.busy = ''; renderVoice(); } return; }
-    v.busy = 'speaking'; renderVoice();
-    try { await V().speak(text); } catch (e) { /* 読めなくても文字は出ている */ }
-    if (state.voice === v && v.busy === 'speaking') { v.busy = ''; renderVoice(); }
+    v.busy = 'preparing'; v.err = ''; renderVoice();
+    let ok = false; try { ok = await V().speak(text, () => { if (state.voice === v && v.busy === 'preparing') { v.busy = 'speaking'; renderVoice(); } }); } catch (e) { /* 読めなくても文字は出ている */ }
+    if (state.voice === v && (v.busy === 'speaking' || v.busy === 'preparing')) {
+      const p = ok ? '' : V().problem();
+      v.busy = ''; if (p) v.err = p === 'play' ? '音を出せませんでした。音量と消音（マナーモード）を確かめて、「もう一度聞く」を押してください。' : '声を用意できませんでした（通信）。「もう一度聞く」を押してください。';
+      renderVoice();
+    }
   }
   /* ボタンで聞く: 収録データから答える（AI を呼ばない） */
   async function voiceQuick(id) {
@@ -551,7 +555,7 @@
   }
   async function voiceMic() {
     const v = state.voice; if (!v) return;
-    if (v.busy === 'speaking') { V().stopSpeaking(); v.busy = ''; renderVoice(); return; }
+    if (v.busy === 'speaking' || v.busy === 'preparing') { V().stopSpeaking(); v.busy = ''; renderVoice(); return; }
     if (v.busy === 'listening') { /* 送る */
       let audio; try { audio = await V().stop(); } catch (e) { v.busy = ''; v.err = e.message === 'too-short' ? '短すぎました。もう少し長く話してください。' : '録音できませんでした。'; renderVoice(); return; }
       v.busy = 'thinking'; v.err = ''; renderVoice(); if (V().readOn()) V().filler().catch(() => {});
@@ -562,7 +566,7 @@
         if (d.transcript) v.turns.push({ role: 'user', text: d.transcript });
         v.turns.push({ role: 'sui', text: d.reply, picks: d.picks, staffLine: d.staffLine || null, source: d.source });
         v.lastReply = d.reply; V().stopSpeaking();
-        if (V().readOn()) { v.busy = 'speaking'; renderVoice(); await V().speak(d.reply); }
+        await voiceSay(v, d.reply); return;
       } catch (e) { v.err = e.status === 429 ? '少し混み合っています。数秒おいて、もう一度。' : '聞き取れませんでした。もう一度どうぞ。'; }
       if (state.voice === v) { v.busy = ''; renderVoice(); }
       return;
@@ -729,14 +733,14 @@
       case 'shop-shoot': shoot('shop'); break;
       case 'shop-place': state.sel.place = el.dataset.val; state.touched = true; render(); break;
       case 'shop-en': St.set('sui.en.v1', !St.get('sui.en.v1', false)); render(); break;
-      case 'voice-open': openVoice({ bottleId: el.dataset.id || null, sel: el.dataset.sel ? state.sel : null }); break;
+      case 'voice-open': V().unlock(); openVoice({ bottleId: el.dataset.id || null, sel: el.dataset.sel ? state.sel : null }); break;
       case 'voice-close': closeVoice(); break;
-      case 'voice-mic': voiceMic(); break;
-      case 'voice-q': voiceQuick(el.dataset.q); break;
-      case 'voice-send': voiceSend(); break;
-      case 'voice-read': V().setRead(!V().readOn()); if (!V().readOn()) { V().stopSpeaking(); if (state.voice && state.voice.busy === 'speaking') state.voice.busy = ''; } renderVoice(); break;
+      case 'voice-mic': V().unlock(); voiceMic(); break;
+      case 'voice-q': V().unlock(); voiceQuick(el.dataset.q); break;
+      case 'voice-send': V().unlock(); voiceSend(); break;
+      case 'voice-read': V().setRead(!V().readOn()); if (V().readOn()) V().unlock(); else { V().stopSpeaking(); if (state.voice && (state.voice.busy === 'speaking' || state.voice.busy === 'preparing')) state.voice.busy = ''; } renderVoice(); break;
       case 'voice-stop': V().stopSpeaking(); if (state.voice) { state.voice.busy = ''; renderVoice(); } break;
-      case 'voice-replay': if (state.voice && state.voice.lastReply) { state.voice.busy = 'speaking'; renderVoice(); V().speak(state.voice.lastReply).then(() => { if (state.voice) { state.voice.busy = ''; renderVoice(); } }); } break;
+      case 'voice-replay': if (state.voice && state.voice.lastReply) { V().unlock(); V().stopSpeaking(); voiceSay(state.voice, state.voice.lastReply); } break;
       case 'voice-pick': closeVoice(); go('card', { current: el.dataset.id, similarOpen: false, wowFlipped: false }); break;
       case 'sheet-close': state.sheet = null; renderSheet(); break;
       case 'sheet-rate': state.sheet.rating = Number(el.dataset.val); keepSheetInputs(); renderSheet(); break;
@@ -774,7 +778,7 @@
       if (!el) return; if (el.dataset.act === 'sheet-close' && stop && stop !== el && el.contains(stop)) return;
       e.preventDefault(); act(el, e);
     });
-    document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.ring-seg, .wow')) act(e.target); if (e.key === 'Enter' && e.target.id === 'vtext' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); voiceSend(); } });
+    document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.ring-seg, .wow')) act(e.target); if (e.key === 'Enter' && e.target.id === 'vtext' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); V().unlock(); voiceSend(); } });
     document.addEventListener('input', e => { if (e.target.id === 'q') { state.searchQ = e.target.value; const list = document.querySelector('.result-list'); if (list) { const tmp = document.createElement('div'); tmp.innerHTML = views.search(); list.innerHTML = tmp.querySelector('.result-list').innerHTML; } } });
     document.getElementById('file').addEventListener('change', e => onFile(e.target.files && e.target.files[0]));
     setInterval(() => { if (St.get(St.KEYS.theme, 'night') === 'auto') { const t = document.documentElement.dataset.theme; if (t !== E.daypart()) render(); } }, 60000);
