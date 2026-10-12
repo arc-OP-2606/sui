@@ -17,14 +17,17 @@
   };
 
   /* ---------- テーマと色 ---------- */
-  function themeNow() { const pref = St.get(St.KEYS.theme, 'auto'); return pref === 'auto' ? E.daypart() : pref; }
+  /* 既定は夜（漆黒）。夜に使うアプリで、白い画面は目に痛く安っぽく見えるため（2026-10-12 塾長）。昼の白は設定で選べる */
+  function themeNow() { const pref = St.get(St.KEYS.theme, 'night'); return pref === 'auto' ? E.daypart() : pref; }
   function applyTheme() { if (!hasDOM) return; document.documentElement.dataset.theme = themeNow(); }
+  /* 夜は画面の差し色を真鍮に統一する（表紙と同じ）。酒の色はグラスの液体と光だけに使う */
+  const BRASS = { acc: '#C8A46A', accInk: '#D9BC84', accSoft: 'rgba(200,164,106,0.12)', accLine: 'rgba(200,164,106,0.38)', accGlow: 'rgba(200,164,106,0.25)', accOn: '#141012' };
   function applyAccent(hex) {
-    if (!hasDOM) return; const t = E.colorTokens(hex || DEFAULT_ACC, themeNow()); const s = document.documentElement.style;
+    if (!hasDOM) return; const t = isNight() ? BRASS : E.colorTokens(hex || DEFAULT_ACC, themeNow()); const s = document.documentElement.style;
     s.setProperty('--acc', t.acc); s.setProperty('--acc-ink', t.accInk); s.setProperty('--acc-soft', t.accSoft); s.setProperty('--acc-line', t.accLine); s.setProperty('--acc-glow', t.accGlow); s.setProperty('--acc-on', t.accOn);
     state.accent = hex || DEFAULT_ACC;
   }
-  function recordHue(r) { const b = r.bottleId ? E.byId(r.bottleId) : null; return b ? b.hue : (C.isHex(r.hue) ? r.hue : DEFAULT_ACC); }
+  function recordHue(r) { if (C.isHex(r.measured)) return r.measured; const b = r.bottleId ? E.byId(r.bottleId) : null; return b ? b.hue : (C.isHex(r.hue) ? r.hue : DEFAULT_ACC); }
   function recordAcc(r) { const b = r.bottleId ? E.byId(r.bottleId) : null; return b ? b.acc : (C.isHex(r.hue) ? r.hue : DEFAULT_ACC); }
   function defaultAccent() { const rs = St.records(); return rs.length ? recordAcc(rs[0]) : DEFAULT_ACC; }
   const isNight = () => themeNow() === 'night';
@@ -35,6 +38,7 @@
   const snapshot = () => { const o = {}; SNAP.forEach(k => { o[k] = state[k]; }); return o; };
   state.history = [];
   function go(view, params) {
+    if (state.voice) closeVoice();
     if (state.view !== view || (params && params.current && params.current !== state.current)) { state.history.push(snapshot()); if (state.history.length > 40) state.history.shift(); }
     Object.assign(state, params || {}); state.view = view; render(); if (hasDOM) window.scrollTo({ top: 0 });
   }
@@ -52,7 +56,7 @@
     /* 表紙と中のページの切替は一瞬で（地色のフェード中に文字が沈まないように） */
     if ((root.dataset.cover || '') !== cover) { root.classList.add('cover-swap'); requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('cover-swap'))); }
     if (cover) root.dataset.cover = cover; else delete root.dataset.cover;
-    const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = cover ? '#0B0A0C' : isNight() ? '#121014' : '#F7F3EE';
+    const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = cover || isNight() ? '#0B0A0C' : '#F7F3EE';
     const issue = document.querySelector('.topbar .issue'); if (issue) issue.textContent = 'NO.' + (new Date().getMonth() + 1) + ' · ' + nameOf(SUI.SEASONS, ctx.season) + (ctx.daypart === 'night' ? 'の夜' : 'の昼');
   }
   function render() {
@@ -133,7 +137,7 @@
     const lastRec = rs[0];
     const quick = E.propose(Object.assign(E.defaults(), { mood: night ? 'quiet' : 'refresh' }), { seed: new Date().getDate(), ctx });
     const pick = quick.items[0];
-    const feats = [['01', 'explore', '探す', `場所と気分で、${night ? '今夜' : '今日'}の一本を`], ['02', 'ladders', '階段', '日常の一本から、名酒へ'], ['03', 'calendar', '色暦', '飲んだ色が、一年の暦になる']];
+    const feats = [['01', 'explore', '探す', `場所と気分で、${night ? '今夜' : '今日'}の一本を`], ['02', 'ladders', '階段', '日常の一本から、名酒へ'], ['03', 'calendar', '色暦', '飲んだ色が、一年の暦になる'], ['04', 'shop', '店で', '品書きを撮って、今日の3本と店員に見せる一言']];
     return `<div class="view cover cover-home">
       <section class="ch-hero">
         ${R.cover({ hue: lastRec ? recordHue(lastRec) : null, label: lastRec ? '最近の一杯の色: ' + lastRec.name : 'スポットライトの中の赤ワイン' })}
@@ -141,7 +145,7 @@
         <div class="ch-shoot"><button class="ch-shootbtn" data-act="shoot" aria-label="撮る">${R.icon('camera')}<span>撮る</span></button><p>ラベルを撮って、<br>一杯を記録する</p></div>
       </section>
       <div class="ch-season"><span class="en">Season</span><span>${esc(season.line)}</span></div>
-      ${pick ? `<div class="ch-tonight"><button class="ch-pick" data-act="card" data-id="${pick.bottle.id}">${dropOf(pick.bottle, 64, { night: true })}<span class="body"><span class="cv-kicker">${night ? '今夜' : '今日'}の${esc(nameOf(SUI.ROLES, pick.role))} · ${pick.bottle.kind === 'wine' ? 'WINE' : 'SAKE'}</span><span class="nm">${esc(pick.bottle.name)}</span><span class="why">${esc(pick.why)}</span><span class="srv">${esc(serveLine(pick.serve))}</span></span></button><button class="linkbtn" data-act="nav" data-view="explore">条件を変えて探す</button></div>` : ''}
+      ${pick ? `<div class="ch-tonight"><button class="ch-pick" data-act="card" data-id="${pick.bottle.id}">${dropOf(pick.bottle, 64, { night: true })}<span class="body"><span class="cv-kicker">${night ? '今夜' : '今日'}の${esc(nameOf(SUI.ROLES, pick.role))} · ${pick.bottle.kind === 'wine' ? 'WINE' : 'SAKE'}</span><span class="nm">${esc(pick.bottle.name)}</span><span class="why">${esc(pick.why)}</span><span class="srv">${esc(serveLine(pick.serve))}</span></span></button><span class="row"><button class="linkbtn" data-act="nav" data-view="explore">条件を変えて探す</button><button class="linkbtn" data-act="voice-open">sui と話して決める</button></span></div>` : ''}
       <div class="ch-features">
         <div class="ch-sechead"><h2>特集</h2><span class="cv-kicker">FEATURES</span></div>
         ${feats.map(([n, v, t, d]) => `<button class="ch-feat" data-act="nav" data-view="${v}"><span class="no">${n}</span><span class="tx"><span class="t">${t}</span><span class="d">${d}</span></span>${R.icon('next')}</button>`).join('')}
@@ -225,6 +229,7 @@
         <button class="btn ghost" data-act="similar">${R.icon('refresh')}似た酒</button>
         <button class="btn ghost" data-act="explore-from" data-id="${b.id}">${R.icon('compass')}この酒で探す</button>
       </div>
+      <button class="btn block" data-act="voice-open" data-id="${b.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>この酒について、sui と話す</button>
       ${state.similarOpen ? `<div class="section">${sectionHead('似た酒', 'Similar')}<div class="result-list">${E.similar(b, 3).map(o => `<button class="result" data-act="card" data-id="${o.id}"><span class="sw" style="background:${o.hue}"></span><span><span class="t">${esc(o.name)}</span><br><span class="d">${esc(o.producer)} · ${esc(priceText(o))}</span></span></button>`).join('')}</div></div>` : ''}
     </div>`;
   };
@@ -245,9 +250,14 @@
         <div class="card flat tint stack"><div class="eyebrow">${state.touched ? 'いまの状況なら' : 'いまの季節なら'}</div><p>${esc(serveLine(sv))}</p><p class="small muted">${esc(sv.note || '')}</p></div>
         <ul class="notes">${b.tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
     }
-    if (k === 'pair') return `<div class="panel card">${H('合わせる', 'Pair')}<div class="pairs">${b.pairings.map(p => `<span class="tag acc">${esc(p)}</span>`).join('')}</div><ul class="notes">${b.tags.food.filter(f => f !== 'none').slice(0, 3).map(f => `<li>${esc(nameOf(SUI.FOODS, f))}: ${esc((byId(SUI.FOODS, f) || {}).d || '')}</li>`).join('')}</ul></div>`;
-    if (k === 'story') return `<div class="panel card">${H('物語', 'Story')}<div class="timeline">${b.story.beats.map(x => `<div class="beat"><div class="y">${esc(x.y)}</div><div>${esc(x.t)}</div></div>`).join('')}</div><dl class="kv"><dt>創業</dt><dd>${b.story.founded}年${b.story.founder ? '　' + esc(b.story.founder) : ''}</dd><dt>土地</dt><dd>${esc(b.country)}　${esc(b.region)}</dd></dl></div>`;
-    if (k === 'wow') return `<div class="panel">${H('へぇ', 'Did you know')}<div class="wow ${state.wowFlipped ? 'flipped' : ''}" data-act="flip" role="button" tabindex="0"><div class="face front"><div class="q">この一本の、意外な話。<br><span class="small muted">タップしてめくる</span></div></div><div class="face back"><p>${esc(b.wow)}</p></div></div></div>`;
+    if (k === 'pair') {
+      const FIT = { good: ['合う', 'fit-good'], neutral: ['どちらとも', 'fit-neutral'], bad: ['合わない', 'fit-bad'] };
+      return `<div class="panel card">${H('合わせる', 'Pair')}<span class="tag src">蔵DB</span><div class="pairs">${b.pairings.map(p => `<span class="tag acc">${esc(p)}</span>`).join('')}</div>
+        <div class="fits">${E.foodFits(b).map(f => `<div class="fit ${FIT[f.level][1]}"><span class="fn">${esc(f.food.name)}</span><span class="fl">${FIT[f.level][0]}</span><span class="fr">${esc(f.reason)}</span></div>`).join('')}</div>
+        <p class="small faint">相性は同調・補完・対比の基本則から。「合わない」も正直に。</p></div>`;
+    }
+    if (k === 'story') return `<div class="panel card">${H('物語', 'Story')}<span class="tag src">蔵DB確認済み</span><div class="timeline">${b.story.beats.map(x => `<div class="beat"><div class="y">${esc(x.y)}</div><div>${esc(x.t)}</div></div>`).join('')}</div><dl class="kv"><dt>創業</dt><dd>${b.story.founded}年${b.story.founder ? '　' + esc(b.story.founder) : ''}</dd><dt>土地</dt><dd>${esc(b.country)}　${esc(b.region)}</dd></dl></div>`;
+    if (k === 'wow') return `<div class="panel">${H('へぇ', 'Did you know')}<span class="tag src">蔵DB確認済み</span><div class="wow ${state.wowFlipped ? 'flipped' : ''}" data-act="flip" role="button" tabindex="0"><div class="face front"><div class="q">この一本の、意外な話。<br><span class="small muted">タップしてめくる</span></div></div><div class="face back"><p>${esc(b.wow)}</p></div></div></div>`;
     if (k === 'ladder') {
       const steps = E.ladder(b); const i = steps.findIndex(s => s.bottle.id === b.id); const next = steps[i + 1];
       return `<div class="panel card">${H('階段', 'Ladder')}<p class="small muted">${esc(b.producer)}の、日常酒から旗艦まで。</p><div class="ladder-wrap">${R.ladder(steps, b.id)}</div><div class="steps-row">${steps.map(s => `<button class="ladder-step" data-act="card" data-id="${s.bottle.id}"><span class="sw" style="background:${s.bottle.hue}"></span><span class="t">${esc(s.bottle.name)}${s.bottle.id === b.id ? '<span class="small muted">　いまここ</span>' : ''}</span><span class="p">${esc(priceText(s.bottle))}</span></button>`).join('')}</div>${next ? `<button class="btn sm acc" data-act="card" data-id="${next.bottle.id}">次の一段、${esc(next.bottle.name)}を見る</button>` : steps.length > 1 ? '<p class="small muted">ここが、この造り手の頂。</p>' : ''}</div>`;
@@ -273,6 +283,7 @@
         ${a.image ? `<img src="${a.image}" alt="撮った写真" style="width:96px;border-radius:12px;border:1px solid var(--line)">` : ''}
       </div>
       <div class="card stack">
+        <div class="row"><span class="tag src">ラベルから読取</span><span class="tag src est">推定</span><span class="small faint">札は文の出どころ。歴史・逸話は収録銘柄だけに出ます。</span></div>
         <dl class="kv">${d.sub ? `<dt>種類</dt><dd>${esc(d.sub)}</dd>` : ''}${d.grapesOrRice ? `<dt>${d.kind === 'sake' ? '酒米' : '品種'}</dt><dd>${esc(d.grapesOrRice)}</dd>` : ''}${d.abv ? `<dt>度数</dt><dd>${esc(d.abv)}%</dd>` : ''}<dt>${d.kind === 'sake' ? '製造年月' : 'ヴィンテージ'}</dt><dd><input id="vintage" type="text" value="${esc(d.vintage || '')}" placeholder="${a.source === 'name' ? '手で入力' : '読み取れず。手で入力'}" style="font:inherit;border:0;border-bottom:1px solid var(--line);background:transparent;color:inherit;width:12em;outline:none"></dd></dl>
         ${d.notes.length ? `<ul class="notes">${d.notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
         ${d.readText ? `<p class="small faint">読めた文字: ${esc(d.readText.slice(0, 120))}</p>` : ''}
@@ -316,8 +327,8 @@
   views.proposals = () => {
     const ctx = seasonCtx(); const r = E.propose(state.sel, { seed: state.seed, ctx });
     return `<div class="view">${chipsBar()}
-      <div class="card tint situation"><div class="eyebrow">Situation</div><h2>${esc(situationName(state.sel, ctx))}</h2><p class="small">${esc(principle(state.sel, ctx))}</p>${r.relaxed.length ? `<p class="small muted">${esc(r.relaxed.join('。'))}。</p>` : ''}</div>
-      <div class="section">${sectionHead('提案', 'Proposals', `<button class="linkbtn" data-act="reseed">ほかの案</button>`)}
+      <div class="card tint situation"><div class="eyebrow">Situation</div><h2>${esc(situationName(state.sel, ctx))}</h2><p class="small">${esc(principle(state.sel, ctx))}</p>${r.relaxed.length ? `<p class="small muted">${esc(r.relaxed.join('。'))}。</p>` : ''}${['izakaya', 'restaurant', 'bar'].includes(state.sel.place) ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="nav" data-view="shop">${R.icon('camera')}品書きを撮って選ぶ</button></div>` : ''}</div>
+      <div class="section">${sectionHead('提案', 'Proposals', `<span class="row"><button class="linkbtn" data-act="voice-open" data-sel="1">話して決める</button><button class="linkbtn" data-act="reseed">ほかの案</button></span>`)}
       <div class="proposals">${r.items.map(it => `<button class="proposal" data-act="card" data-id="${it.bottle.id}"><span class="sw">${R.glass(Object.assign({ hue: it.bottle.hue, size: 72, seed: 3, night: isNight(), sparkle: false }, glassFor(it.bottle)))}</span><span class="body"><span class="row"><span class="role ${it.role}">${esc(nameOf(SUI.ROLES, it.role))}</span><span class="small muted">${esc(KINDNAME[it.bottle.kind])} · ${esc(priceText(it.bottle))}</span></span><span class="nm ${it.bottle.kind}">${esc(it.bottle.name)}</span><span class="why">${esc(it.why)}</span><span class="srv">${esc(serveLine(it.serve))}</span></span></button>`).join('')}</div></div>
       <p class="small faint">価格は目安（店・時期で変動）。条件は上のチップから、いつでも変えられます。</p>
     </div>`;
@@ -345,7 +356,10 @@
     const tendency = (() => { const bs = rs.map(r => r.bottleId && E.byId(r.bottleId)).filter(Boolean); if (!bs.length) return ''; const avgx = bs.reduce((a, b) => a + E.mapXY(b).x, 0) / bs.length, avgy = bs.reduce((a, b) => a + E.mapXY(b).y, 0) / bs.length; return (avgx > 0.55 ? '重めの味' : avgx < 0.45 ? '軽やかな味' : '中くらいの重さ') + '、' + (avgy > 0.55 ? '華やかな香り' : avgy < 0.45 ? '穏やかな香り' : '香りはほどほど') + 'に寄っている。'; })();
     return `<div class="view"><div class="eyebrow">Palette</div><h1>色暦</h1>
       <div class="card mycolor">${R.drop({ hue: avg, size: 120, night: isNight(), rim: true })}<div class="stack"><div class="eyebrow">あなたの色</div><div class="latin" style="font-size:22px">${esc(avg)}</div><p class="small muted">${esc(tendency || '飲んだ色の平均。')}${kinds.wine && kinds.sake ? 'ワインも日本酒も。' : kinds.wine ? 'いまはワイン寄り。' : kinds.sake ? 'いまは日本酒寄り。' : ''}</p></div></div>
+      ${(() => { const ar = E.archetype(rs); if (!ar) return `<div class="card flat"><p class="small muted">あと${Math.max(0, 3 - rs.filter(r => r.bottleId).length)}本で、あなたの「原型」が決まる。</p></div>`; const story = St.get('sui.arch.' + ar.id, null); return `<div class="card tint stack"><div class="eyebrow">あなたの原型</div><div class="arch-name">${esc(ar.name)}</div><p>${esc(ar.line)}</p>${story ? `<p class="small">${story.map(esc).join('<br>')}</p>` : (AI() && AI().ok() && AI().consent() ? `<button class="linkbtn" data-act="arch-story" data-id="${ar.id}">三行の物語を聞く</button>` : '')}</div>`; })()}
+      ${(() => { const ym = monthKey(new Date()); const ms = E.monthStats(rs, ym); const prev = monthKey(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)); const mp = E.monthStats(rs, prev); return `<div class="card stack"><div class="eyebrow">まとめの一枚</div><p class="small muted">その月の色を、墨流しの一枚に。杯数は数えない。</p><div class="btnrow">${!ms.empty ? `<button class="btn sm" data-act="month-card" data-ym="${ym}">${esc(SUI.art.KANJI_M[Number(ym.split('-')[1])])}のまとめ</button>` : ''}${!mp.empty ? `<button class="btn sm ghost" data-act="month-card" data-ym="${prev}">${esc(SUI.art.KANJI_M[Number(prev.split('-')[1])])}のまとめ</button>` : ''}</div></div>`; })()}
       ${pts.length ? `<div class="card"><div class="eyebrow">好みの地図</div><div class="quad">${R.quadrant({ points: pts })}</div></div>` : ''}
+      ${(() => { const d = St.get('sui.words.v1', {}); const ws = Object.keys(d).sort((a, b2) => d[b2] - d[a]).slice(0, 12); const max = ws.length ? d[ws[0]] : 1; return ws.length ? `<div class="card"><div class="eyebrow">あなたの言葉辞典</div><div class="pairs">${ws.map(w => `<span class="tag acc" style="font-size:${(12 + 6 * d[w] / max).toFixed(1)}px">${esc(w)}</span>`).join('')}</div><p class="small faint">記録で選んだ言葉。次の候補はここから出ます。</p></div>` : ''; })()}
       ${Object.keys(months).sort().reverse().map(k => `<div class="month"><div class="mh"><span class="m">${k.replace('-', '.')}</span></div><div class="drops">${months[k].map(r => `<button class="drop-btn" data-act="record" data-id="${r.id}">${R.drop({ hue: recordHue(r), size: 56, night: isNight() })}<span class="n">${esc(r.name)}</span></button>`).join('')}</div></div>`).join('')}
     </div>`;
   };
@@ -355,21 +369,57 @@
     if (hasDOM) setTimeout(() => St.getPhoto(r.id).then(blob => { const el = document.getElementById('rphoto'); if (el && blob) { el.src = URL.createObjectURL(blob); el.hidden = false; } }), 0);
     return `<div class="view record-detail"><button class="linkbtn" data-act="nav" data-view="calendar">${R.icon('back')} 色暦へ</button>
       <div class="hero-card">${R.drop({ hue: recordHue(r), size: 140, night: isNight(), rim: true })}<div class="name ${r.kind === 'sake' ? 'sake' : ''}" style="font-size:${r.kind === 'sake' ? 34 : 24}px">${esc(r.name)}</div><div class="maker">${esc(fmtDate(r.ts))}　${esc(nameOf(SUI.PLACES, r.place))}${r.with ? '　' + esc(nameOf(SUI.WITH, r.with)) + 'と' : ''}</div>
-      <div class="rating">${[1, 2, 3, 4, 5].map(i => `<span style="color:${i <= (r.rating || 0) ? 'var(--acc)' : 'var(--line)'}">${R.icon('drop')}</span>`).join('')}</div>${r.word ? `<p class="one">「${esc(r.word)}」</p>` : ''}${r.band ? `<p class="small muted">${esc(nameOf(SUI.TEMPS, r.band))}で</p>` : ''}${r.paid ? `<p class="small muted">${esc(yen(r.paid))}</p>` : ''}</div>
+      <div class="rating">${[1, 2, 3, 4, 5].map(i => `<span style="color:${i <= (r.rating || 0) ? 'var(--acc)' : 'var(--line)'}">${R.icon('drop')}</span>`).join('')}</div>${r.word ? `<p class="one">「${esc(r.word)}」</p>` : ''}${r.band ? `<p class="small muted">${esc(nameOf(SUI.TEMPS, r.band))}で</p>` : ''}${r.haiku ? `<div class="haiku">${r.haiku.map(l => `<span>${esc(l)}</span>`).join('')}<span class="eyebrow">余韻の一句</span></div>` : ''}${r.paid ? `<p class="small muted">${esc(yen(r.paid))}</p>` : ''}</div>
       <img id="rphoto" class="photo" alt="" hidden>
       <div class="actions"><button class="btn acc" data-act="share" data-id="${r.id}">${R.icon('share')}画像で共有</button>${b ? `<button class="btn ghost" data-act="card" data-id="${b.id}">${R.icon('book')}酒カードへ</button>` : ''}<button class="btn ghost" data-act="delete-record" data-id="${r.id}">${state.confirmDelete === r.id ? 'もう一度押すと消えます' : '削除'}</button></div>
     </div>`;
   };
 
+  /* ---------- 店で: 品書きを撮る → 今日の3本 ＋ 店員に見せる一言 ---------- */
+  views.shop = () => {
+    const sh = state.shop || {}; const en = St.get('sui.en.v1', false);
+    const body = sh.busy ? `${R.pour({ hue: state.accent })}<p class="status-line">${esc(sh.msg || '品書きを読んでいます')}</p>`
+      : sh.result ? renderShopResult(sh.result, en)
+      : `<p class="status-line">品書き（メニュー）を正面から。縦書きは読めた分だけ使います。</p><div class="btnrow"><button class="btn acc" data-act="shop-shoot">${R.icon('camera')}品書きを撮る</button><button class="btn ghost" data-act="voice-open" data-sel="1">話して決める</button></div>`;
+    return `<div class="view capture"><div class="eyebrow">At the table</div><h1>店で</h1>
+      <div class="chips">${['izakaya', 'restaurant', 'bar'].map(p => `<button class="chip ${state.sel.place === p ? 'active' : ''}" data-act="shop-place" data-val="${p}">${esc(nameOf(SUI.PLACES, p))}</button>`).join('')}<button class="chip ${en ? 'active' : ''}" data-act="shop-en">English</button></div>
+      ${body}${sh.result ? `<div class="btnrow"><button class="btn ghost sm" data-act="shop-shoot">別の品書きを撮る</button></div>` : ''}
+    </div>`;
+  };
+  function renderShopResult(r, en) {
+    const ROLE = { 本命: 'honmei', 冒険: 'bouken', 安全: 'teiban' };
+    return `<div class="stack" style="width:100%;text-align:left">
+      ${r.unreadable ? '<p class="small muted">読めない行がありました（縦書き・筆文字）。読めた分だけで選んでいます。</p>' : ''}
+      <div class="proposals">${(r.picks || []).map(p => { const b = p.matchId ? E.byId(p.matchId) : null; return `<${b ? 'button' : 'div'} class="proposal" ${b ? `data-act="card" data-id="${b.id}"` : ''}><span class="sw">${b ? dropOf(b, 72) : R.drop({ hue: '#9FB4BD', size: 72, empty: true })}</span><span class="body"><span class="row"><span class="role ${ROLE[p.role] || ''}">${esc(p.role)}</span><span class="tag src ${p.source === '蔵DB' ? '' : 'est'}">${esc(p.source || '推定')}</span></span><span class="nm">${esc(p.name)}</span><span class="why">${esc(p.why)}</span><span class="srv">${esc(p.serve)}</span></span></${b ? 'button' : 'div'}>`; }).join('')}</div>
+      ${r.staffLine ? `<div class="staff-card"><div class="eyebrow">店員に見せる</div><div class="big">${esc(r.staffLine)}</div></div>` : ''}
+      ${en && r.en ? `<div class="card stack"><div class="eyebrow">For travelers</div>${(r.en.lines || []).map(l => `<p class="small">${esc(l)}</p>`).join('')}${r.en.card ? `<div class="staff-card"><div class="eyebrow">Show this to the staff</div><div class="big">${esc(r.en.card)}</div></div>` : ''}</div>` : ''}
+      ${r.items && r.items.length ? `<details class="card flat"><summary class="small muted">読めた品書き（${r.items.length}）</summary><ul class="notes">${r.items.slice(0, 30).map(i => `<li>${esc(i.name)}${i.price ? '　' + esc(i.price) : ''}${i.matchId && E.byId(i.matchId) ? '　<span class="tag src">蔵DB</span>' : ''}</li>`).join('')}</ul></details>` : ''}
+    </div>`;
+  }
+  async function shopFile(file) {
+    state.shop = { busy: true, msg: '写真を整えています' }; render();
+    try {
+      const img = await Rec.shrink(file, 1280); state.shop.msg = '品書きを読んでいます'; render();
+      const rs = St.records().slice(0, 8).map(r => `${r.name}${r.rating ? '★' + r.rating : ''}${r.word ? '「' + r.word + '」' : ''}`).join('／') || 'まだ無い';
+      const r = await AI().menuPicks(img.b64, img.mime, state.sel, rs);
+      state.shop = { result: r };
+    } catch (e) { console.warn('shop', e); state.shop = {}; toast(e.status === 429 ? '少し混み合っています。数秒おいて、もう一度。' : e.message === 'timeout' ? '時間がかかりすぎました。もう一度。' : '品書きを読めませんでした。もう一度。'); }
+    render();
+  }
+
+  /* テスト用: 画像(URL)を品書きとして流す */
+  async function shopFeed(url) { const r = await fetch(url); const blob = await r.blob(); go('shop'); shopFile(new File([blob], 'menu.png', { type: blob.type || 'image/png' })); }
+
   /* ---------- 設定 ---------- */
   views.settings = () => {
-    const key = St.getRaw(St.KEYS.apiKey, ''), theme = St.get(St.KEYS.theme, 'auto');
+    const key = St.getRaw(St.KEYS.apiKey, ''), theme = St.get(St.KEYS.theme, 'night');
     return `<div class="view"><div class="eyebrow">Settings</div><h1>設定</h1>
       ${Rec.relay() ? `<div class="card stack"><div class="eyebrow">写真の読み取り</div><p class="small">写真は読み取りのときだけ、sui の中継サーバーを通して Google Gemini に送られます。保存はされません。端末には縮小した写真だけが残ります。</p></div>` : `<div class="card stack"><div class="field"><label>Gemini APIキー（写真の読み取りに使う）</label><input id="apikey" type="password" value="${esc(key)}" placeholder="AIza…" autocomplete="off"></div>
         <div class="btnrow"><button class="btn sm" data-act="save-key">保存</button>${key ? '<button class="btn sm ghost" data-act="clear-key">消す</button>' : ''}</div>
         <ul class="notes"><li>Google AI Studio で「Get API key」→ キーを作成 → ここに貼る。</li><li>写真は読み取りのときだけ Google に送られ、端末には縮小した写真だけが残る。</li><li>キーはこの端末だけに保存される。</li></ul>
         <p class="small"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></p></div>`}
-      <div class="card stack"><div class="field"><label>地色</label><div class="theme-chips">${[['auto', '自動（18時から夜）'], ['day', '昼・磁器の白'], ['night', '夜・漆黒']].map(([v, n]) => `<button class="theme-chip" data-act="theme" data-val="${v}" aria-pressed="${theme === v}">${esc(n)}</button>`).join('')}</div></div></div>
+      <div class="card stack"><div class="field"><label>AI に過去の言葉を渡す</label><div class="theme-chips"><button class="theme-chip" data-act="ai-consent-set" data-val="1" aria-pressed="${AI() && AI().consent()}">渡す（香りの三択・一句・店で・話す が使える）</button><button class="theme-chip" data-act="ai-consent-set" data-val="0" aria-pressed="${!(AI() && AI().consent())}">渡さない</button></div></div><p class="small muted">渡すのは、銘柄の情報と、あなたの色暦（最近の記録・評価・ひとこと・選んだ言葉）。声や写真は、その機能を使った瞬間だけ。中継サーバーには保存されません。</p></div>
+      <div class="card stack"><div class="field"><label>地色</label><div class="theme-chips">${[['night', '夜・漆黒（おすすめ）'], ['auto', '自動（18時から夜）'], ['day', '昼・磁器の白']].map(([v, n]) => `<button class="theme-chip" data-act="theme" data-val="${v}" aria-pressed="${theme === v}">${esc(n)}</button>`).join('')}</div></div></div>
       <div class="card stack"><div class="btnrow"><button class="btn sm ghost" data-act="export">${R.icon('download')}記録を書き出す（JSON）</button><button class="btn sm ghost" data-act="age-reset">年齢確認をやり直す</button></div><p class="small muted">${St.ok() ? '' : 'この端末では保存ができません（プライベートモード等）。'}</p></div>
       <p class="small" style="text-align:center"><a href="${esc((SUI.CONFIG && SUI.CONFIG.privacyUrl) || 'privacy.html')}" target="_blank" rel="noopener">プライバシーポリシー</a></p>
       <p class="footer-note">sui ${esc((SUI.CONFIG && SUI.CONFIG.version) || '1.0')}　価格は目安（店・時期で変動）。20歳未満の者の飲酒は法律で禁止されています。妊娠中や授乳期の飲酒は、胎児・乳児の発育に悪影響を与えるおそれがあります。お酒は適量を。</p>
@@ -377,7 +427,22 @@
   };
 
   /* ---------- 記録シート ---------- */
-  function openSheet(init) { state.sheet = Object.assign({ name: '', kind: null, bottleId: null, hue: null, image: null, rating: 0, word: '', place: state.sel.place || 'home', with: 'solo', band: null, paid: '' }, init || {}); renderSheet(); }
+  function openSheet(init) {
+    state.sheet = Object.assign({ name: '', kind: null, bottleId: null, hue: null, image: null, rating: 0, word: '', place: state.sel.place || 'home', with: 'solo', band: null, paid: '', words: null, note: '', picked: [], wordsBusy: false }, init || {});
+    renderSheet(); suggestWords();
+  }
+  /* ① 香りの三択: 候補語 3 つ（AI が使えなければ蔵DBの香り） */
+  const AI = () => SUI.ai;
+  function pastWords() { const d = St.get('sui.words.v1', {}); return Object.keys(d).sort((a, b) => d[b] - d[a]); }
+  async function suggestWords() {
+    const s = state.sheet; if (!s) return; const b = s.bottleId ? E.byId(s.bottleId) : null;
+    if (!b) { s.words = null; return; }
+    if (!(AI() && AI().ok() && AI().consent())) { s.words = AI() ? AI().fallbackWords(b) : b.aromas.slice(0, 3); s.note = ''; renderSheet(); return; }
+    s.wordsBusy = true; s.words = AI().fallbackWords(b); renderSheet();
+    try { const r = await AI().suggestWords(b, pastWords(), s.word); if (state.sheet === s) { s.words = r.words.length ? r.words : s.words; s.note = r.note || ''; } }
+    catch (e) { /* 劣化: 蔵DBの香りのまま */ }
+    if (state.sheet === s) { s.wordsBusy = false; keepSheetInputs(); renderSheet(); }
+  }
   function renderSheet() {
     if (!hasDOM) return; let host = document.getElementById('sheet'); if (!state.sheet) { if (host) host.remove(); return; }
     if (!host) { host = document.createElement('div'); host.id = 'sheet'; document.body.appendChild(host); }
@@ -389,9 +454,12 @@
       <div class="grab"></div>
       <div class="section-head"><h2>記録する</h2><span class="eyebrow">Log</span></div>
       <div class="field"><label>銘柄</label><input id="s-name" type="text" value="${esc(s.name)}" ${b ? 'readonly' : ''} placeholder="銘柄名"></div>
-      <div class="photo-pick">${s.image ? `<img class="thumb" src="${s.image}" alt="">` : '<div class="thumb"></div>'}<button class="btn sm ghost" data-act="sheet-photo">${s.image ? '写真を替える' : '写真を付ける'}</button></div>
+      <div class="photo-pick">${s.image ? `<img class="thumb" src="${s.image}" alt="">` : '<div class="thumb"></div>'}<button class="btn sm ghost" data-act="sheet-photo">${s.image ? '写真を替える' : '写真を付ける'}</button>${s.image ? `<button class="btn sm ghost" data-act="sheet-measure">色を測る</button>` : ''}</div>
+      ${s.measured ? `<div class="card flat tint row"><span class="sw" style="width:28px;height:28px;border-radius:50%;background:${s.measured.hex};border:1px solid var(--line)"></span><span class="small">今夜の色 <span class="latin">${esc(s.measured.hex)}</span>　${esc(s.measured.band)}<br><span class="muted">${esc(s.measured.note)}</span></span></div>` : ''}
+      ${s.measuring ? `<div class="measure"><p class="small">${s.measuring.step === 1 ? '① グラスの液体をタップ' : '② 白い紙（または白い皿）をタップ。無ければ「紙なし」'}</p><div class="measure-img"><img id="m-img" src="${s.image}" alt="" data-act="measure-tap"></div><div class="btnrow"><button class="btn sm ghost" data-act="measure-cancel">やめる</button>${s.measuring.step === 2 ? '<button class="btn sm ghost" data-act="measure-nopaper">紙なしで測る</button>' : ''}</div></div>` : ''}
       <div class="field"><label>評価</label><div class="rate-btns">${[1, 2, 3, 4, 5].map(i => `<button data-act="sheet-rate" data-val="${i}" aria-pressed="${s.rating >= i}" aria-label="${i}">${R.icon('drop')}</button>`).join('')}</div></div>
-      <div class="field"><label>ひとこと（20字まで）</label><input id="s-word" type="text" maxlength="20" value="${esc(s.word)}" placeholder="例: 二杯目がうまい"></div>
+      <div class="field"><label>ひとこと（40字まで）</label><input id="s-word" type="text" maxlength="40" value="${esc(s.word)}" placeholder="例: 二杯目がうまい"></div>
+      ${s.words ? `<div class="field"><label>言葉の三択${s.wordsBusy ? '　<span class="faint">あなたの言葉を探しています</span>' : (AI() && AI().ok() && !AI().consent() ? '　<button class="linkbtn" data-act="ai-consent">AIに過去の言葉を渡して候補を出す</button>' : '')}</label><div class="pills">${s.words.map(w => `<button class="pill" data-act="sheet-word" data-val="${esc(w)}" aria-pressed="${s.picked.includes(w)}">${esc(w)}</button>`).join('')}</div>${s.note ? `<button class="linkbtn" data-act="sheet-note">「${esc(s.note)}」をひとことに</button>` : ''}</div>` : ''}
       <div class="field"><label>場所</label><div class="pills">${SUI.PLACES.filter(p => p.id !== 'gift').map(p => `<button class="pill" data-act="sheet-set" data-key="place" data-val="${p.id}" aria-pressed="${s.place === p.id}">${esc(p.name)}</button>`).join('')}</div></div>
       <div class="field"><label>誰と</label><div class="pills">${SUI.WITH.map(p => `<button class="pill" data-act="sheet-set" data-key="with" data-val="${p.id}" aria-pressed="${s.with === p.id}">${esc(p.name)}</button>`).join('')}</div></div>
       ${(s.kind || (b && b.kind)) === 'sake' ? `<div class="field"><label>飲んだ温度</label><div class="pills">${SUI.TEMPS.map(t => `<button class="pill" data-act="sheet-set" data-key="band" data-val="${t.id}" aria-pressed="${s.band === t.id}">${esc(t.name)}</button>`).join('')}</div></div>` : ''}
@@ -403,12 +471,123 @@
     const s = state.sheet; const name = (document.getElementById('s-name') || {}).value || s.name; const word = (document.getElementById('s-word') || {}).value || ''; const paid = Number((document.getElementById('s-paid') || {}).value) || null;
     if (!name.trim()) { toast('銘柄名を入れてください'); return; }
     const b = s.bottleId ? E.byId(s.bottleId) : null;
-    const rec = { name: name.trim(), bottleId: s.bottleId, kind: s.kind || (b && b.kind) || null, hue: b ? b.hue : (s.hue || DEFAULT_ACC), rating: s.rating, word: word.trim(), place: s.place, with: s.with, band: s.band, paid, hasPhoto: !!s.image, ai: s.ai || null };
+    const words = (s.picked || []).concat(word.split(/[、,\s]+/).map(x => x.trim()).filter(x => x && x.length <= 10)).filter((x, i, arr) => arr.indexOf(x) === i).slice(0, 6);
+    if (words.length) { const d = St.get('sui.words.v1', {}); words.forEach(w => { d[w] = (d[w] || 0) + 1; }); St.set('sui.words.v1', d); }
+    const rec = { name: name.trim(), bottleId: s.bottleId, kind: s.kind || (b && b.kind) || null, hue: s.measured ? s.measured.hex : (b ? b.hue : (s.hue || DEFAULT_ACC)), measured: s.measured ? s.measured.hex : null, rating: s.rating, word: word.trim(), words, place: s.place, with: s.with, band: s.band, paid, hasPhoto: !!s.image, ai: s.ai || null };
     const id = St.addRecord(rec);
     if (!id) { toast('この端末では保存できません'); return; }
     const img = s.image; state.sheet = null; renderSheet();
-    const finish = () => { toast('色暦に入れました'); go('calendar'); };
+    const finish = () => { toast('色暦に入れました'); go('calendar'); haikuFor(id, rec, b); };
     if (img) { const blob = St.dataUrlToBlob(img); St.putPhoto(id, blob).then(okp => { if (!okp) { St.updateRecord(id, { hasPhoto: false }); toast('写真は保存できず、記録だけ残しました'); } finish(); }); } else finish();
+  }
+
+  /* ---------- 音声ソムリエ ---------- */
+  const V = () => SUI.voice;
+  state.voice = null; /* {open, ctx:{bottleId, sel}, turns:[{role,text,picks,staffLine}], busy:'', level:0, err:'', lastReply:''} */
+  function openVoice(ctx) {
+    state.voice = { open: true, ctx: ctx || {}, turns: [], busy: '', level: 0, err: '', lastReply: '' };
+    renderVoice();
+  }
+  function closeVoice() { if (!state.voice) return; try { if (V().recording()) V().stop().catch(() => {}); } catch (e) { /* ignore */ } V().stopSpeaking(); state.voice = null; const h = document.getElementById('voice'); if (h) h.remove(); }
+  function voiceCtx() { const c = state.voice.ctx; return { bottle: c.bottleId ? E.byId(c.bottleId) : null, sel: c.sel || (state.touched ? state.sel : E.defaults()) }; }
+  function renderVoice() {
+    if (!hasDOM) return; let host = document.getElementById('voice'); const v = state.voice; if (!v) { if (host) host.remove(); return; }
+    if (!host) { host = document.createElement('div'); host.id = 'voice'; document.body.appendChild(host); }
+    const c = voiceCtx(); const ok = AI() && AI().ok(); const consent = AI() && AI().consent(); const mic = V() && V().supported();
+    const title = c.bottle ? `${c.bottle.name} について` : (c.sel && c.sel.place ? `${nameOf(SUI.PLACES, c.sel.place)}で、今夜の一本` : '今夜の一本');
+    const status = { listening: '聞いています…もう一度押すと送ります', thinking: '考えています', speaking: '話しています' }[v.busy] || (v.turns.length ? 'もう一度話す' : 'ボタンを押して、話しかけてください');
+    const turns = v.turns.map(t => t.role === 'user' ? `<div class="vbubble user">${esc(t.text)}</div>` : `<div class="vbubble sui">${esc(t.text)}${t.source ? `<span class="tag src">${esc(t.source)}</span>` : ''}</div>${t.picks && t.picks.length ? `<div class="vpicks">${t.picks.map(p => p.bottle ? `<button class="result" data-act="voice-pick" data-id="${p.bottle.id}"><span class="sw" style="background:${p.bottle.hue}"></span><span><span class="t">${esc(p.bottle.name)}</span><br><span class="d">${esc(p.serve)}</span></span></button>` : `<div class="result"><span class="sw" style="background:var(--bg2)"></span><span><span class="t">${esc(p.name)}</span><br><span class="d">${esc(p.serve)}　<span class="tag src est">推定</span></span></span></div>`).join('')}</div>` : ''}${t.staffLine ? `<div class="staff-card"><div class="eyebrow">店員に見せる</div><div class="big">${esc(t.staffLine)}</div></div>` : ''}`).join('');
+    host.innerHTML = `<div class="voice-back" data-act="voice-close"><div class="voice" data-stop="1">
+      <div class="grab"></div>
+      <div class="section-head"><div><div class="eyebrow">Talk with sui</div><h2>${esc(title)}</h2></div><button class="iconbtn" data-act="voice-close" aria-label="閉じる">${R.icon('close')}</button></div>
+      ${!ok ? '<div class="card tint"><p class="small">音声ソムリエには読み取りの設定（中継サーバー）が必要です。</p></div>' : !mic ? '<div class="card tint"><p class="small">この環境ではマイクが使えません。アプリ版でお試しください。</p></div>' : !consent ? `<div class="card tint stack"><p class="small">話しかけた声と、あなたの色暦（最近の記録・言葉）を sui の中継サーバー経由で Google Gemini に送って答えます。声は保存されません。</p><button class="btn sm acc" data-act="ai-consent">許可して話す</button></div>` : ''}
+      <div class="vbubbles">${turns || `<p class="small muted">例:「今日は焼き鳥、塩で。さっぱりしたのがいい」「この酒、何と合わせる？」「贈り物にするなら？」</p>`}</div>
+      ${v.err ? `<p class="small" style="color:#A24E24">${esc(v.err)}</p>` : ''}
+      <div class="vcontrols">
+        <button class="micbtn ${v.busy}" data-act="voice-mic" style="--lv:${(v.level || 0).toFixed(2)}" aria-label="話す" ${(!ok || !mic || !consent || v.busy === 'thinking') ? 'disabled' : ''}>${v.busy === 'listening' ? R.icon('check') : v.busy === 'speaking' ? R.icon('close') : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>`}</button>
+        <div class="vstatus">${esc(status)}</div>
+        ${v.lastReply && v.busy === '' ? `<button class="linkbtn" data-act="voice-replay">もう一度聞く</button>` : ''}
+      </div>
+    </div></div>`;
+    const list = host.querySelector('.vbubbles'); if (list) list.scrollTop = list.scrollHeight;
+  }
+  async function voiceMic() {
+    const v = state.voice; if (!v) return;
+    if (v.busy === 'speaking') { V().stopSpeaking(); v.busy = ''; renderVoice(); return; }
+    if (v.busy === 'listening') { /* 送る */
+      let audio; try { audio = await V().stop(); } catch (e) { v.busy = ''; v.err = e.message === 'too-short' ? '短すぎました。もう少し長く話してください。' : '録音できませんでした。'; renderVoice(); return; }
+      v.busy = 'thinking'; v.err = ''; renderVoice(); V().filler().catch(() => {});
+      try {
+        const hist = v.turns.map(t => ({ role: t.role, text: t.text }));
+        const d = await V().ask(audio, voiceCtx(), hist);
+        if (!state.voice || state.voice !== v) return;
+        if (d.transcript) v.turns.push({ role: 'user', text: d.transcript });
+        v.turns.push({ role: 'sui', text: d.reply, picks: d.picks, staffLine: d.staffLine || null, source: d.source });
+        v.lastReply = d.reply; v.busy = 'speaking'; renderVoice();
+        V().stopSpeaking();
+        await V().speak(d.reply);
+      } catch (e) { v.err = e.status === 429 ? '少し混み合っています。数秒おいて、もう一度。' : '聞き取れませんでした。もう一度どうぞ。'; }
+      if (state.voice === v) { v.busy = ''; renderVoice(); }
+      return;
+    }
+    /* 聞き始める */
+    try { V().stopSpeaking(); await V().start(l => { if (state.voice === v && v.busy === 'listening') { v.level = l; const b = document.querySelector('.micbtn'); if (b) b.style.setProperty('--lv', l.toFixed(2)); } }); v.busy = 'listening'; v.err = ''; renderVoice(); }
+    catch (e) { v.err = e.name === 'NotAllowedError' ? 'マイクの使用が許可されていません。設定で許可してください。' : 'マイクを使えませんでした。'; renderVoice(); }
+  }
+  /* 内蔵ブラウザ等、マイクが無い環境のテスト用: 音声ファイル(URL)を入力として流す */
+  async function voiceFeed(url) { const v = state.voice; if (!v) return; const r = await fetch(url); const buf = await r.arrayBuffer(); let s = ''; const u8 = new Uint8Array(buf); for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); v.busy = 'listening'; V().stop = async () => ({ b64: btoa(s), mime: 'audio/wav', seconds: 3 }); V().recording = () => true; await voiceMic(); }
+
+  /* ⑤ グラスの色を測る: 画像の2点（液体・白い紙）から端末内で */
+  function measureTap(e) {
+    const s = state.sheet; if (!s || !s.measuring) return; const img = e.target; const rect = img.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width, y = (e.clientY - rect.top) / rect.height;
+    if (s.measuring.step === 1) { s.measuring.liquid = { x, y }; s.measuring.step = 2; renderSheet(); return; }
+    s.measuring.paper = { x, y }; finishMeasure();
+  }
+  function finishMeasure(noPaper) {
+    const s = state.sheet; const m = s.measuring; const im = new Image();
+    im.onload = () => {
+      const cv = document.createElement('canvas'); const k = Math.min(1, 800 / Math.max(im.naturalWidth, im.naturalHeight)); cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
+      const g = cv.getContext('2d'); g.drawImage(im, 0, 0, cv.width, cv.height); const data = g.getImageData(0, 0, cv.width, cv.height);
+      const pt = p => ({ x: p.x * cv.width, y: p.y * cv.height });
+      const r = SUI.art.measureColor(data, pt(m.liquid), noPaper ? null : pt(m.paper));
+      const b = s.bottleId ? E.byId(s.bottleId) : null; const kind = s.kind || (b && b.kind) || 'wine';
+      const band = SUI.art.colorBand(kind, r.hex);
+      s.measured = { hex: r.hex, band: band.name, note: b ? SUI.art.compareBand(kind, r.hex, b.hue) : band.note }; s.measuring = null; keepSheetInputs(); renderSheet();
+    };
+    im.src = s.image;
+  }
+
+  /* ④ 原型の物語・月次カード */
+  const monthKey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  async function archStory(id) {
+    const rs = St.records(); const ar = E.archetype(rs); if (!ar || ar.id !== id) return;
+    try { const lines = await AI().archetypeStory(ar, E.monthStats(rs, monthKey(new Date()))); if (lines && lines.length) { St.set('sui.arch.' + ar.id, lines); if (state.view === 'calendar') render(); } } catch (e) { toast('物語は後で'); }
+  }
+  async function monthCard(ym) {
+    const rs = St.records(); const ms = E.monthStats(rs, ym); if (ms.empty) { toast('その月の記録がありません'); return; }
+    const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1920; const g = cv.getContext('2d');
+    const ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve(); await ready;
+    SUI.art.monthCard(g, { ym, hues: ms.hues, stats: ms, archetype: E.archetype(rs), night: isNight() });
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const N = SUI.native; if (N && N.isNative && N.shareImage) { try { await N.shareImage(blob, 'sui-' + ym + '.png', '色暦 ' + ym); return; } catch (e) { /* fall through */ } }
+    const url = URL.createObjectURL(blob);
+    const host = document.createElement('div'); host.className = 'sheet-back'; host.innerHTML = `<div class="sheet" data-stop="1" style="align-items:center"><div class="grab"></div><img src="${url}" alt="色暦のまとめ" style="width:min(100%,360px);border-radius:16px;border:1px solid var(--line)"><p class="small muted">長押し（または右クリック）で画像を保存。</p><button class="btn ghost sm" data-act="overlay-close">閉じる</button></div>`;
+    host.addEventListener('click', e => { if (e.target === host || e.target.closest('[data-act=overlay-close]')) host.remove(); });
+    document.body.appendChild(host);
+  }
+
+  /* ③ 余韻の一句: 保存のあとに静かに作り、記録に添える */
+  const COLOR_NAMES = [['#8B1E3F', 'ルビー'], ['#6E1F2E', 'ガーネット'], ['#E8D9A0', '麦わら'], ['#D9B34A', '黄金'], ['#E8A0A6', 'ロゼ'], ['#F3F0E4', '透明'], ['#EADFA6', '山吹'], ['#C9933F', '琥珀']];
+  function colorName(hex) { let best = COLOR_NAMES[0], bd = 1e9; const a = C.hexToRgb(hex) || [0, 0, 0]; COLOR_NAMES.forEach(([h, n]) => { const r = C.hexToRgb(h); const d = (r[0] - a[0]) ** 2 + (r[1] - a[1]) ** 2 + (r[2] - a[2]) ** 2; if (d < bd) { bd = d; best = [h, n]; } }); return best[1]; }
+  async function haikuFor(id, rec, b) {
+    if (!(AI() && AI().ok() && AI().consent())) return;
+    try {
+      const h = await AI().haiku({ name: rec.name, kind: rec.kind, word: rec.word, place: nameOf(SUI.PLACES, rec.place), season: nameOf(SUI.SEASONS, E.seasonOf()), colorName: colorName(rec.hue) });
+      if (!h) return; St.updateRecord(id, { haiku: h.lines });
+      toast('余韻の一句　' + h.lines.join('　'));
+      if (state.view === 'record' && state.recordId === id) render();
+    } catch (e) { /* 一句は無くてもよい */ }
   }
 
   /* ---------- 共有画像 ---------- */
@@ -427,6 +606,7 @@
       g.font = (r.kind === 'sake' ? '400 84px "Yuji Syuku", serif' : '500 72px "Shippori Mincho", serif'); g.fillText(r.name.slice(0, 14), 540, 1000);
       g.font = '400 34px "Cormorant Garamond", serif'; g.fillStyle = night ? '#A89DA2' : '#6E6468'; g.fillText(fmtDate(r.ts) + (r.place ? '   ' + nameOf(SUI.PLACES, r.place) : ''), 540, 1060);
       if (r.word) { g.font = '400 40px "Zen Kaku Gothic New", sans-serif'; g.fillStyle = night ? '#F2ECE4' : '#221E22'; g.fillText('「' + r.word + '」', 540, 1140); }
+      if (r.haiku) { g.font = '500 44px "Shippori Mincho", serif'; g.fillStyle = night ? '#F2ECE4' : '#221E22'; g.fillText(r.haiku.join('　'), 540, r.word ? 1205 : 1140); }
       g.font = '500 40px "Cormorant Garamond", serif'; g.fillStyle = C.ensureContrast(hue, night ? '#121014' : '#F7F3EE', 3); g.fillText('sui', 540, 1270);
       g.font = '400 20px "Shippori Mincho", serif'; g.fillStyle = night ? '#6F6570' : '#A39A9E'; g.fillText('酒の色で、世界を知る。', 540, 1305);
       return new Promise(res => cv.toBlob(res, 'image/png'));
@@ -446,11 +626,12 @@
   function shoot(mode) {
     if (!hasDOM) return; pendingShot = mode || 'recognize';
     const N = SUI.native;
-    if (N && N.isNative && N.pickPhoto) { if (mode !== 'sheet') go('capture'); N.pickPhoto().then(file => { if (file) onFile(file); else pendingShot = null; }).catch(() => { pendingShot = null; }); return; }
-    const inp = document.getElementById('file'); inp.value = ''; inp.click(); if (mode !== 'sheet') go('capture');
+    if (N && N.isNative && N.pickPhoto) { if (mode !== 'sheet' && mode !== 'shop') go('capture'); N.pickPhoto().then(file => { if (file) onFile(file); else pendingShot = null; }).catch(() => { pendingShot = null; }); return; }
+    const inp = document.getElementById('file'); inp.value = ''; inp.click(); if (mode !== 'sheet' && mode !== 'shop') go('capture');
   }
   async function onFile(file) {
     const mode = pendingShot || 'recognize'; pendingShot = null; if (!file) return;
+    if (mode === 'shop') { shopFile(file); return; }
     if (mode === 'sheet') { const img = await Rec.shrink(file, 1024); state.sheet.image = img.dataUrl; renderSheet(); return; }
     const key = St.getRaw(St.KEYS.apiKey, '');
     if (mode === 'record' || !Rec.available(key)) { const img = await Rec.shrink(file, 1024); state.capture = { status: 'idle', image: img.dataUrl }; openSheet({ image: img.dataUrl, hue: DEFAULT_ACC }); return; }
@@ -465,7 +646,7 @@
   }
 
   /* ---------- イベント ---------- */
-  function act(el) {
+  function act(el, e) {
     const a = el.dataset.act, s = state.sel;
     switch (a) {
       case 'nav': go(el.dataset.view, el.dataset.view === 'search' ? {} : {}); break;
@@ -502,10 +683,28 @@
       case 'clear-key': St.setRaw(St.KEYS.apiKey, ''); toast('キーを消しました'); render(); break;
       case 'theme': St.set(St.KEYS.theme, el.dataset.val); render(); break;
       case 'export': { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([St.exportJson()], { type: 'application/json' })); a.download = 'sui-records.json'; a.click(); break; }
+      case 'arch-story': archStory(el.dataset.id); toast('物語を書いています'); break;
+      case 'month-card': monthCard(el.dataset.ym); break;
+      case 'sheet-measure': keepSheetInputs(); state.sheet.measuring = { step: 1 }; renderSheet(); break;
+      case 'measure-cancel': keepSheetInputs(); state.sheet.measuring = null; renderSheet(); break;
+      case 'measure-nopaper': finishMeasure(true); break;
+      case 'measure-tap': measureTap(e); break;
+      case 'shop-shoot': shoot('shop'); break;
+      case 'shop-place': state.sel.place = el.dataset.val; state.touched = true; render(); break;
+      case 'shop-en': St.set('sui.en.v1', !St.get('sui.en.v1', false)); render(); break;
+      case 'voice-open': openVoice({ bottleId: el.dataset.id || null, sel: el.dataset.sel ? state.sel : null }); break;
+      case 'voice-close': closeVoice(); break;
+      case 'voice-mic': voiceMic(); break;
+      case 'voice-replay': if (state.voice && state.voice.lastReply) { state.voice.busy = 'speaking'; renderVoice(); V().speak(state.voice.lastReply).then(() => { if (state.voice) { state.voice.busy = ''; renderVoice(); } }); } break;
+      case 'voice-pick': closeVoice(); go('card', { current: el.dataset.id, similarOpen: false, wowFlipped: false }); break;
       case 'sheet-close': state.sheet = null; renderSheet(); break;
       case 'sheet-rate': state.sheet.rating = Number(el.dataset.val); keepSheetInputs(); renderSheet(); break;
       case 'sheet-set': state.sheet[el.dataset.key] = el.dataset.val; keepSheetInputs(); renderSheet(); break;
       case 'sheet-photo': keepSheetInputs(); shoot('sheet'); break;
+      case 'sheet-word': { keepSheetInputs(); const s2 = state.sheet, w = el.dataset.val; const i = s2.picked.indexOf(w); if (i >= 0) s2.picked.splice(i, 1); else s2.picked.push(w); s2.word = s2.picked.join('、'); renderSheet(); break; }
+      case 'sheet-note': { keepSheetInputs(); state.sheet.word = state.sheet.note.slice(0, 40); renderSheet(); break; }
+      case 'ai-consent-set': AI().setConsent(el.dataset.val === '1'); render(); break;
+      case 'ai-consent': { AI().setConsent(true); toast('AIに過去の言葉を渡します'); if (state.voice) renderVoice(); else if (state.sheet) { keepSheetInputs(); suggestWords(); } else render(); break; }
       case 'sheet-save': saveSheet(); break;
       default: break;
     }
@@ -532,15 +731,15 @@
     document.addEventListener('click', e => {
       const stop = e.target.closest('[data-stop]'); const el = e.target.closest('[data-act]');
       if (!el) return; if (el.dataset.act === 'sheet-close' && stop && stop !== el && el.contains(stop)) return;
-      e.preventDefault(); act(el);
+      e.preventDefault(); act(el, e);
     });
     document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.ring-seg, .wow')) act(e.target); });
     document.addEventListener('input', e => { if (e.target.id === 'q') { state.searchQ = e.target.value; const list = document.querySelector('.result-list'); if (list) { const tmp = document.createElement('div'); tmp.innerHTML = views.search(); list.innerHTML = tmp.querySelector('.result-list').innerHTML; } } });
     document.getElementById('file').addEventListener('change', e => onFile(e.target.files && e.target.files[0]));
-    setInterval(() => { if (St.get(St.KEYS.theme, 'auto') === 'auto') { const t = document.documentElement.dataset.theme; if (t !== E.daypart()) render(); } }, 60000);
+    setInterval(() => { if (St.get(St.KEYS.theme, 'night') === 'auto') { const t = document.documentElement.dataset.theme; if (t !== E.daypart()) render(); } }, 60000);
     render();
     try { const q = new URLSearchParams(location.search); const shot = q.get('shot'); if (shot) devShot(shot, q.get('theme')); } catch (e) { /* ignore */ }
   }
   if (hasDOM) { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init(); }
-  SUI.app = { state, views, render, go, back, applyAccent, applyTheme, STEPS, THEMES, openSheet, sheetHtml, situationName, principle, serveLine, defaultAccent, recordHue };
+  SUI.app = { state, views, render, go, back, openVoice, voiceFeed, shopFeed, openSheet, applyAccent, applyTheme, STEPS, THEMES, openSheet, sheetHtml, situationName, principle, serveLine, defaultAccent, recordHue };
 })(globalThis);

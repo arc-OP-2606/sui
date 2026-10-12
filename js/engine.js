@@ -46,6 +46,7 @@
     const r = rng(seed * 7919 + 13);
     let pool = all().filter(b => !b.noRecommend && kindOk(b, sel) && affordable(b, sel));
     const relaxed = [];
+    if (sel.food && sel.food !== 'none') { const fit = pool.filter(b => foodFit(b, sel.food).level !== 'bad'); if (fit.length >= 3) pool = fit; else relaxed.push('料理と合わない酒も含めています'); }
     let cur = Object.assign({}, sel);
     const scored = () => pool.map(b => ({ b, s: score(b, cur, ctx) + r() * 0.3 })).sort((x, y) => y.s - x.s);
     let list = scored();
@@ -72,10 +73,44 @@
     if (place && has(b.tags.place, sel.place)) reasons.push(place.name + 'で映える');
     if (has(b.tags.season, ctx.season)) reasons.push((byId(SUI.SEASONS, ctx.season) || {}).name + 'に向く');
     const trim = (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t;
+    if (sel.food && sel.food !== 'none') { const f = foodFit(b, sel.food); if (f.level === 'bad') reasons.unshift('料理とは合わない: ' + f.reason.replace(/。$/, '')); }
     if (role === 'honmei') return (reasons.slice(0, 2).join('。') || b.one) + '。';
     const head = { bouken: '飲んだことのない造りかもしれない', nichijo: '気負わない価格で、これ', gohobi: '予算の上まで手を伸ばす価値', teiban: '外さない一本' }[role] || '';
     return head + '。' + trim(b.one, 48) + (b.one.endsWith('。') ? '' : '。');
   }
+
+  /* 料理との相性（三値）。tags.food にあれば good。規則は WSET／SSI の基本（同調・補完・対比） */
+  function wineStyle(b) { const sub = String(b.sub || ''); if (b.bottle === 'flute' || /泡|スパークリング|シャンパ|Champagne|Sparkling/i.test(sub)) return 'sparkling'; if (/ロゼ|Ros/i.test(sub)) return 'rose'; return C.luminance(b.hue) > 0.5 ? 'white' : 'red'; }
+  function foodFit(b, foodId) {
+    if (!foodId || foodId === 'none') return { level: 'good', reason: '酒だけを味わう。' };
+    if (has(b.tags.food, foodId)) return { level: 'good', reason: '蔵の推す合わせ方。' };
+    const t = b.taste || {};
+    let r;
+    if (b.kind === 'wine') {
+      const st = wineStyle(b), sweet = (t.b || 1) >= 4, tannin = t.d || 1, acid = t.c || 3, body = t.a || 3;
+      const M = {
+        sashimi: st === 'sparkling' ? ['good', '泡と酸が生魚の脂を切る。'] : st === 'white' && acid >= 3 ? ['good', '酸が魚の生臭さを抑える。'] : st === 'red' && tannin >= 3 ? ['bad', '生魚の脂と渋みが鉄っぽくなる。'] : ['neutral', '軽めなら邪魔はしない。'],
+        meat: sweet ? ['bad', '甘さが塩とタレを重くする。'] : st === 'red' ? ['good', '炭と脂に渋みが寄り添う。'] : body >= 3 ? ['neutral', '白なら塩で。'] : ['neutral', '軽い白は塩の焼き鳥向き。'],
+        nabe: st === 'red' && tannin >= 4 ? ['bad', '出汁の繊細さを渋みが消す。'] : st === 'red' ? ['good', '出汁の旨みに軽い赤。'] : ['neutral', '冷やしすぎなければ寄り添う。'],
+        western: sweet ? ['neutral', 'デザート寄りで。'] : ['good', 'バターと旨みに酸か渋み。'],
+        asian: sweet || st === 'sparkling' ? ['good', '香辛料には甘みと泡が逃げ道。'] : st === 'red' && tannin >= 4 ? ['bad', '辛味が渋みを強める。'] : ['neutral', '香りの強い料理は酒を選ぶ。'],
+        sweet: sweet ? ['good', '菓子より甘い酒が原則。'] : st === 'red' && tannin >= 3 ? ['bad', '菓子より酒が辛いと酒が痩せる。'] : ['neutral', '甘くない泡なら軽い菓子に。'],
+      }; r = M[foodId];
+    } else {
+      const ty = b.type4 || 'so', sweet = (t.a || 3) >= 4;
+      const M = {
+        sashimi: ty === 'so' ? ['good', '香りを立てず、キレで脂を流す。'] : ty === 'juku' ? ['bad', '熟成香が生魚の繊細さを覆う。'] : ['neutral', '香りが魚と競わない温度で。'],
+        meat: ty === 'jun' || ty === 'juku' ? ['good', '濃い旨みには濃い酒。'] : ['neutral', '塩なら冷やで寄り添う。'],
+        nabe: ty === 'jun' ? ['good', '出汁には米の旨み。ぬる燗で。'] : ty === 'so' ? ['good', '出汁を邪魔しない。'] : ['neutral', '燗にすると寄る。'],
+        western: ty === 'kun' ? ['good', '果実の香りがチーズに寄る。'] : ty === 'juku' ? ['good', '熟成香は熟成チーズと同調。'] : ['neutral', 'クリーム系なら常温で。'],
+        asian: ty === 'so' || ty === 'jun' ? ['good', '油と香辛料をキレか旨みで受ける。'] : ['neutral', '香りの強い料理と競う。'],
+        sweet: ty === 'juku' || (ty === 'kun' && sweet) ? ['good', '甘みと香りが菓子に負けない。'] : ty === 'so' ? ['bad', '淡麗辛口は菓子に負ける。'] : ['neutral', '甘口なら。'],
+      }; r = M[foodId];
+    }
+    if (!r) return { level: 'neutral', reason: '' };
+    return { level: r[0], reason: r[1] };
+  }
+  function foodFits(b) { return SUI.FOODS.filter(f => f.id !== 'none').map(f => Object.assign({ food: f }, foodFit(b, f.id))); }
 
   /* この状況での飲み方 */
   function serve(b, sel, ctx) {
@@ -141,6 +176,61 @@
     }).sort((x, y) => y.s - x.s).slice(0, limit || 3).map(x => x.o);
   }
 
+  /* ④ 原型: 色暦の記録から 12 原型のどれか（端末内で決める。量は数えない） */
+  const ARCHETYPES = [
+    { id: 'hanabie', name: '花冷えの人', line: '香りが一番美しい10℃で、吟醸の花を開かせる。', when: a => a.sake >= 0.6 && a.cool >= 0.6 && a.aroma >= 0.55 },
+    { id: 'nurukan', name: 'ぬる燗の人', line: '40℃で米の旨みがほどける瞬間を知っている。', when: a => a.sake >= 0.6 && a.warm >= 0.4 },
+    { id: 'garnet', name: 'ガーネットの人', line: '深い赤の層を、時間をかけて辿る。', when: a => a.wine >= 0.6 && a.dark >= 0.6 && a.heavy >= 0.55 },
+    { id: 'straw', name: '麦わらの人', line: '光を透かす白を、冷たいうちに。', when: a => a.wine >= 0.6 && a.light >= 0.5 && a.cool >= 0.5 },
+    { id: 'awa', name: '泡の人', line: '始まりはいつも泡から。乾杯の音が好き。', when: a => a.sparkling >= 0.4 },
+    { id: 'kiri', name: 'キレの人', line: '淡麗辛口。余韻より切れ味を取る。', when: a => a.sake >= 0.6 && a.heavy <= 0.4 && a.aroma <= 0.45 },
+    { id: 'koku', name: 'コクの人', line: '濃醇な旨みと、それに負けない料理。', when: a => a.heavy >= 0.65 },
+    { id: 'bouken', name: '冒険の人', line: 'まだ色暦に無い色を、いつも探している。', when: a => a.adventure >= 0.6 },
+    { id: 'kaidan', name: '階段の人', line: '同じ造り手の一段上を、必ず試す。', when: a => a.ladder >= 0.4 },
+    { id: 'tabi', name: '旅の人', line: '蔵のそば、旅先の一杯が一番うまい。', when: a => a.away >= 0.5 },
+    { id: 'kazoku', name: '卓の人', line: '誰と飲むかで酒を選ぶ。', when: a => a.together >= 0.7 },
+    { id: 'tousitsu', name: '透明の人', line: 'ほぼ無色の中の、かすかな違いを楽しむ。', when: () => true },
+  ];
+  function archetype(records) {
+    const rs = (records || []).filter(r => r.bottleId && bottleById(r.bottleId));
+    if (rs.length < 3) return null;
+    const bs = rs.map(r => bottleById(r.bottleId));
+    const n = bs.length, frac = f => bs.filter(f).length / n;
+    const idx = id => SUI.TEMPS.findIndex(t => t.id === id);
+    const sakeRecs = rs.filter(r => r.band);
+    const a = {
+      sake: frac(b => b.kind === 'sake'), wine: frac(b => b.kind === 'wine'),
+      sparkling: frac(b => b.bottle === 'flute' || /泡|発泡|スパークリング/.test(b.sub || '')),
+      dark: frac(b => C.luminance(b.hue) < 0.15), light: frac(b => C.luminance(b.hue) > 0.5),
+      heavy: bs.reduce((s, b) => s + ((b.kind === 'sake' ? b.taste.b : b.taste.a) || 3), 0) / n / 5,
+      aroma: bs.reduce((s, b) => s + ((b.kind === 'sake' ? b.taste.c : (b.taste.e || 3)) || 3), 0) / n / 5,
+      cool: sakeRecs.length ? sakeRecs.filter(r => idx(r.band) <= 2).length / sakeRecs.length : frac(b => b.kind === 'wine' && b.serve.tempC && b.serve.tempC[1] <= 12),
+      warm: sakeRecs.length ? sakeRecs.filter(r => idx(r.band) >= 4).length / sakeRecs.length : 0,
+      adventure: bs.reduce((s, b) => s + (b.originality || 1), 0) / n / 5,
+      ladder: (() => { const seen = {}; bs.forEach(b => { const k = b.ladder.join(','); (seen[k] = seen[k] || new Set()).add(b.id); }); return Object.values(seen).filter(st => st.size >= 2).length / Math.max(1, Object.keys(seen).length); })(),
+      away: rs.filter(r => r.place === 'onsen' || r.place === 'outdoor' || r.atBrewery).length / n,
+      together: rs.filter(r => r.with && r.with !== 'solo').length / n,
+    };
+    const hit = ARCHETYPES.find(t => t.when(a)) || ARCHETYPES[ARCHETYPES.length - 1];
+    return { id: hit.id, name: hit.name, line: hit.line, axes: a };
+  }
+  /* 月の統計（量は数えない: 種類・色・造り手・場所・初めて） */
+  function monthStats(records, ym) {
+    const all = records || [];
+    const inMonth = r => { const d = new Date(r.ts); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') === ym; };
+    const rs = all.filter(inMonth), before = all.filter(r => !inMonth(r) && r.ts < new Date(ym + '-01').getTime());
+    const bottles = rs.map(r => r.bottleId && bottleById(r.bottleId)).filter(Boolean);
+    const hues = rs.map(r => { const b = r.bottleId && bottleById(r.bottleId); return b ? b.hue : (C.isHex(r.hue) ? r.hue : '#9FB4BD'); });
+    const colorFamilies = new Set(hues.map(h => { const l = C.luminance(h); const hs = C.hexToHsl(h); return l > 0.72 ? 'clear' : l > 0.35 ? (hs.h > 20 && hs.h < 70 ? 'gold' : 'rose') : 'red'; }));
+    const producers = [...new Set(bottles.map(b => b.producer))];
+    const prevProducers = new Set(before.map(r => r.bottleId && bottleById(r.bottleId)).filter(Boolean).map(b => b.producer));
+    const places = [...new Set(rs.map(r => r.place).filter(Boolean))].map(p => (SUI.byIdIn(SUI.PLACES, p) || {}).name).filter(Boolean);
+    const firstProducers = producers.filter(p => !prevProducers.has(p));
+    const kinds = { sake: bottles.filter(b => b.kind === 'sake').length > 0, wine: bottles.filter(b => b.kind === 'wine').length > 0 };
+    const best = rs.filter(r => r.rating >= 4).sort((p, q) => (q.rating - p.rating) || (q.ts - p.ts))[0] || null;
+    return { ym, hues, colors: hues.length ? new Set(hues).size : 0, colorFamilies: [...colorFamilies], producers: producers.length, producerNames: producers, places, firstProducers, kinds, best, words: [...new Set(rs.flatMap(r => r.words || []))].slice(0, 6), haiku: (rs.find(r => r.haiku) || {}).haiku || null, empty: rs.length === 0 };
+  }
+
   /* 色派生 */
   const BG = { day: '#F7F3EE', night: '#121014' };
   function colorTokens(hex, theme) {
@@ -167,5 +257,5 @@
     return C.rgbToHex(m[0], m[1], m[2]);
   }
 
-  SUI.engine = { all, byId: bottleById, defaults, seasonOf, daypart, score, propose, serve, why, ladder, ladders, search, similar, colorTokens, mapXY, avgHue, budgetMax, TIER_RANK, norm };
+  SUI.engine = { all, byId: bottleById, defaults, seasonOf, daypart, score, propose, serve, why, ladder, ladders, search, similar, colorTokens, mapXY, avgHue, budgetMax, TIER_RANK, norm, foodFit, foodFits, wineStyle, archetype, monthStats, ARCHETYPES };
 })(globalThis);

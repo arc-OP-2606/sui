@@ -12,9 +12,22 @@
   --tabbar-h: 72px;
 }
 :root[data-theme="night"] {
-  --bg: #121014; --bg2: #1A171C; --card: #201C22; --ink: #F2ECE4; --ink2: #A89DA2; --ink3: #6F6570; --line: #2E2930;
-  --shadow: 0 14px 36px rgba(0, 0, 0, 0.45); --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.35); color-scheme: dark;
+  --bg: #0B0A0C; --bg2: #121014; --card: #141215; --ink: #F2EBDD; --ink2: #B5ABA2; --ink3: #8E857D; --line: rgba(242, 235, 221, 0.10);
+  --brass: #C8A46A; --brass-line: rgba(200, 164, 106, 0.35);
+  --shadow: 0 14px 36px rgba(0, 0, 0, 0.5); --shadow-sm: none; color-scheme: dark;
 }
+/* 夜の誌面（既定）: 表紙と同じ漆黒・象牙・真鍮で中のページも揃える。差し色は真鍮（app.js の BRASS）、酒の色はグラスの液体と光だけ */
+:root[data-theme="night"] .brand .logo { font-family: var(--font-display); font-weight: 400; font-size: 30px; letter-spacing: -0.01em; }
+:root[data-theme="night"] .brand .logo em { color: inherit; }
+:root[data-theme="night"] .brand .kanji { color: var(--brass); }
+:root[data-theme="night"] .eyebrow { font-family: var(--font-display); font-weight: 400; letter-spacing: 0.22em; }
+:root[data-theme="night"] .card { border-radius: 18px; }
+:root[data-theme="night"] .card.tint { background: rgba(200, 164, 106, 0.06); border-color: var(--brass-line); }
+:root[data-theme="night"] .btn { background: var(--brass); border-color: var(--brass); color: #141012; }
+:root[data-theme="night"] .btn.ghost { background: transparent; color: var(--ink); border-color: rgba(242, 235, 221, 0.32); }
+:root[data-theme="night"] .btn:hover { box-shadow: 0 0 0 1px var(--brass-line); }
+:root[data-theme="night"] .proposal, :root[data-theme="night"] .opt, :root[data-theme="night"] .result { border-radius: 18px; }
+:root[data-theme="night"] .tabbar .tab.shoot .ring { box-shadow: 0 0 0 6px var(--bg), 0 0 24px rgba(200, 164, 106, 0.3); }
 /* 表紙（年齢確認とホーム）: 昼夜を問わず漆黒の地。光は液体と真鍮だけ */
 :root[data-cover] {
   --bg: #0B0A0C; --bg2: #151316; --card: #151316; --ink: #F2EBDD; --ink2: #B5ABA2; --ink3: #8E857D; --line: rgba(242, 235, 221, 0.12);
@@ -228,6 +241,18 @@ p { margin: 0; }
 .notes li::before { content: ''; position: absolute; left: 0; top: 11px; width: 8px; height: 1px; background: var(--acc); }
 .thermo svg { width: 100%; height: auto; }
 
+/* 相性の三値・根拠の札 */
+.tag.src { border-style: dashed; color: var(--ink3); font-size: 10.5px; min-height: 20px; }
+.tag.src.est { border-color: #D9A66B; color: #8A5A1E; }
+.fits { display: flex; flex-direction: column; gap: 6px; }
+.fit { display: grid; grid-template-columns: 84px 64px 1fr; gap: 8px; align-items: baseline; font-size: 12.5px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.fit:last-child { border-bottom: 0; }
+.fit .fn { font-family: var(--font-jp-serif); }
+.fit .fl { font-size: 11px; letter-spacing: 0.08em; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); text-align: center; }
+.fit-good .fl { border-color: var(--acc-line); color: var(--acc-ink); background: var(--acc-soft); }
+.fit-bad .fl { border-color: #C96A3B; color: #A24E24; }
+.fit .fr { color: var(--ink2); }
+
 /* situation + proposals */
 .situation h2 { font-size: 22px; }
 .proposals { display: flex; flex-direction: column; gap: 14px; }
@@ -270,6 +295,9 @@ p { margin: 0; }
 .record-detail .photo { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 20px; border: 1px solid var(--line); }
 .rating { display: inline-flex; gap: 6px; }
 .rating svg { width: 22px; height: 22px; }
+
+.haiku { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 18px; border: 1px solid var(--acc-line); border-radius: 18px; background: var(--acc-soft); font-family: var(--font-jp-serif); font-size: 17px; letter-spacing: 0.08em; }
+.haiku .eyebrow { margin-top: 6px; }
 
 /* sheet (記録する) */
 .sheet-back { position: fixed; inset: 0; background: rgba(10, 8, 10, 0.45); z-index: 40; display: flex; align-items: flex-end; justify-content: center; animation: fadein 0.25s ease; }
@@ -373,6 +401,33 @@ p { margin: 0; }
 .ch-recent { display: flex; flex-direction: column; gap: 4px; }
 .ch-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 18px; border-radius: 20px; border: 1px dashed var(--brass-line); }
 .ch-empty p { font-size: 13px; color: var(--ink2); }
+
+.arch-name { font-family: var(--font-jp-serif); font-size: 24px; }
+.measure { display: flex; flex-direction: column; gap: 8px; }
+.measure-img { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
+.measure-img img { width: 100%; display: block; cursor: crosshair; }
+
+/* 音声ソムリエ */
+.voice-back { position: fixed; inset: 0; background: rgba(10, 8, 10, 0.5); z-index: 45; display: flex; align-items: flex-end; justify-content: center; animation: fadein 0.25s ease; }
+.voice { width: 100%; max-width: 560px; height: 86vh; background: var(--bg); border-radius: 26px 26px 0 0; padding: 14px 18px calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; animation: up 0.3s ease; }
+.voice .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--line); align-self: center; }
+.vbubbles { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px 2px; }
+.vbubble { max-width: 88%; padding: 10px 14px; border-radius: 18px; font-size: 14.5px; line-height: 1.6; }
+.vbubble.user { align-self: flex-end; background: var(--bg2); border: 1px solid var(--line); border-bottom-right-radius: 6px; }
+.vbubble.sui { align-self: flex-start; background: var(--acc-soft); border: 1px solid var(--acc-line); border-bottom-left-radius: 6px; font-family: var(--font-jp-serif); }
+.vbubble.sui .tag { margin-left: 8px; vertical-align: middle; }
+.vpicks { display: flex; flex-direction: column; gap: 6px; align-self: stretch; }
+.staff-card { align-self: stretch; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--acc-line); background: var(--card); text-align: center; }
+.staff-card .big { font-family: var(--font-jp-serif); font-size: 22px; line-height: 1.4; margin-top: 4px; }
+.vcontrols { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+.micbtn { width: 76px; height: 76px; border-radius: 50%; border: 0; background: var(--acc); color: var(--acc-on); display: grid; place-items: center; cursor: pointer; box-shadow: 0 0 0 calc(4px + 18px * var(--lv, 0)) var(--acc-line); transition: box-shadow 0.08s linear, transform 0.15s ease, background-color var(--dur) ease; }
+.micbtn svg { width: 30px; height: 30px; }
+.micbtn.listening { animation: breathe 1.2s ease-in-out infinite; }
+.micbtn.thinking { background: var(--ink2); animation: breathe 0.8s ease-in-out infinite; }
+.micbtn.speaking { background: var(--ink); }
+.micbtn:disabled { opacity: 0.45; cursor: not-allowed; }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+.vstatus { font-family: var(--font-jp-serif); color: var(--ink2); font-size: 13px; min-height: 1.5em; }
 
 /* toast */
 .toast { position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 13px; z-index: 50; box-shadow: var(--shadow); animation: fadein 0.25s ease; max-width: 90vw; }
