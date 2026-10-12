@@ -51,7 +51,7 @@
   }, required: ['transcript', 'reply', 'picks', 'source'] };
   function context(ctx) {
     ctx = ctx || {}; const lines = [];
-    const b = ctx.bottle; if (b) lines.push(`いま見ている一本（蔵DB）: ${b.name}／${b.producer}／${b.sub}／味 ${JSON.stringify(b.taste)}／香り ${(b.aromas || []).join('・')}／飲み方 ${b.kind === 'sake' ? (b.serve.bands || []).join('・') + ' best ' + b.serve.best + '・器 ' + b.serve.vessel : b.serve.tempC.join('–') + '℃・' + b.serve.glass}／合う料理 ${(b.pairings || []).join('・')}／階段 ${E().ladder(b).map(x => x.bottle.name + '(¥' + x.bottle.price.min + ')').join('→')}`);
+    const b = ctx.bottle; if (b) lines.push(`いま見ている一本（蔵DB）: ${b.name}／${b.producer}／${b.sub}／味 ${JSON.stringify(b.taste)}／香り ${(b.aromas || []).join('・')}／いちばんの飲み方 ${serveShort(E().serve(b, ctx.sel || E().defaults(), ctxNow()))}／合う料理 ${(b.pairings || []).join('・')}／階段 ${E().ladder(b).map(x => x.bottle.name + '(¥' + x.bottle.price.min + ')').join('→')}`);
     const rs = (St().records() || []).slice(0, 8).map(r => `${r.name}${r.rating ? '★' + r.rating : ''}${r.word ? '「' + r.word + '」' : ''}${r.band ? '・' + (SUI.byIdIn(SUI.TEMPS, r.band) || {}).name : ''}${r.place ? '・' + (SUI.byIdIn(SUI.PLACES, r.place) || {}).name : ''}`);
     lines.push('この人の最近の記録（色暦）: ' + (rs.join('／') || 'まだ無い'));
     const words = Object.keys(St().get('sui.words.v1', {})).slice(0, 15); if (words.length) lines.push('この人がよく使う言葉: ' + words.join('・'));
@@ -64,21 +64,65 @@
     lines.push('収録リスト（id | 名前 | 造り手 | 種類 | 合う料理 | 目安価格）:\n' + cand.map(x => `${x.id} | ${x.name} | ${x.producer} | ${x.sub} | ${x.tags.food.join('・')} | ¥${x.price.min}`).join('\n'));
     return lines.join('\n');
   }
-  function prompt(ctx, history) {
+  function prompt(ctx, history, typed) {
     const hist = (history || []).slice(-6).map(t => `${t.role === 'user' ? '客' : 'sui'}: ${t.text}`).join('\n');
     return `あなたは「sui」。酒の相棒で、落ち着いて温かく、少し茶目っ気のある声の持ち主。音声で返事を読み上げるので、話し言葉で、1〜3文・110字以内。敬語は丁寧すぎない「です・ます」。
 守ること: 与えた事実（蔵DB・この人の記録）だけを使い、知らないことは「分からない」と言う。健康・酔いにくさ・翌日の体調に触れない。杯数や量を勧めない。造り手の歴史や受賞歴を作らない。合わない組合せは正直に「合わない」と言う。
-添付の音声は客の発話。transcript に文字起こし（聞き取れなければ空）。reply に返事。picks に勧める酒（最大2本、収録リストの id を matchId に。収録外なら null。serve は温度帯と器を15字以内）。客が店で頼む場面なら staffLine に店員にそのまま見せる一文（25字以内）、そうでなければ null。source は 蔵DB／推定 のどちらか。
+${typed ? `客の発言は文字で届いた: 「${String(typed).slice(0, 200)}」。transcript にはこの発言をそのまま入れる。` : '添付の音声は客の発話。transcript に文字起こし（聞き取れなければ空）。'}reply に返事。picks に勧める酒（最大2本、収録リストの id を matchId に。収録外なら null。serve は温度帯と器を15字以内）。客が店で頼む場面なら staffLine に店員にそのまま見せる一文（25字以内）、そうでなければ null。source は、返事の中身がすべて与えた事実（蔵DB・この人の記録）に書いてあるときだけ 蔵DB。自分の推測（料理の相性の広げ方など）を少しでも含むなら 推定。
 ${context(ctx)}
 これまでの会話:
 ${hist || '（最初の発話）'}`;
   }
-  async function ask(audio, ctx, history) {
-    const d = await AI().call([{ inline_data: { mime_type: audio.mime, data: audio.b64 } }, { text: prompt(ctx, history) }], SCHEMA, { temperature: 0.6, timeoutMs: 25000, thinkingBudget: 0, feature: 'voice' });
+  function tidy(d) {
     d.reply = AI().clean(d.reply).slice(0, 160); d.transcript = String(d.transcript || '').slice(0, 200);
     d.picks = (d.picks || []).slice(0, 2).map(p => Object.assign(p, { bottle: p.matchId ? E().byId(p.matchId) : null }));
     return d;
   }
+  async function ask(audio, ctx, history) {
+    return tidy(await AI().call([{ inline_data: { mime_type: audio.mime, data: audio.b64 } }, { text: prompt(ctx, history) }], SCHEMA, { temperature: 0.6, timeoutMs: 25000, thinkingBudget: 0, feature: 'voice' }));
+  }
+  /* 文字で聞く（店では声を出さない） */
+  async function askText(text, ctx, history) {
+    const d = tidy(await AI().call([{ text: prompt(ctx, history, text) }], SCHEMA, { temperature: 0.6, timeoutMs: 25000, thinkingBudget: 0, feature: 'voice-text' }));
+    d.transcript = String(text).slice(0, 200); return d;
+  }
+
+  /* ---------- ボタンで聞く（蔵DB の事実だけ。AI を呼ばないので速く、正確） ---------- */
+  const PHRASE = {
+    sake: { a: ['辛口寄り', '甘口寄り'], b: ['淡麗', '濃醇'], c: ['香りは穏やか', '香りが華やか'], d: ['酸はやわらか', '酸がきりっと'] },
+    wine: { a: ['軽やか', '重厚'], b: ['辛口', '甘口'], c: ['酸は穏やか', '酸が鮮やか'], d: ['渋みはなめらか', '渋みが力強い'] },
+  };
+  const yen = n => Math.round(n).toLocaleString('ja-JP') + '円';
+  function ctxNow() { return { season: E().seasonOf(), daypart: E().daypart() }; }
+  function serveSpeech(sv) { return sv.kind === 'sake' ? `${sv.bandName}、${sv.tempC}度くらいで。器は${sv.vesselName}。` : `${sv.tempC[0]}から${sv.tempC[1]}度。グラスは${sv.glassName}。${sv.decant ? sv.decant + '分ほど空気に触れさせて。' : ''}`; }
+  function serveShort(sv) { return sv.kind === 'sake' ? `${sv.bandName}（${sv.tempC}℃）・${sv.vesselName}` : `${sv.tempC[0]}–${sv.tempC[1]}℃・${sv.glassName}`; }
+  const BOTTLE_TOPICS = [['one', 'ひと言で'], ['taste', '味わいは？'], ['serve', '温度と器は？'], ['food', '合う料理は？'], ['story', '造り手の話'], ['wow', 'へぇ、を聞く'], ['order', '店でどう頼む？'], ['next', '一段上の一本は？']];
+  const PICK_TOPICS = [['honmei', '今夜の本命は？'], ['bouken', '冒険するなら？'], ['nichijo', '気負わない一本は？'], ['gohobi', 'ご褒美なら？'], ['teiban', '定番は？']];
+  function topics(ctx) { return ((ctx && ctx.bottle) ? BOTTLE_TOPICS : PICK_TOPICS).map(([id, label]) => ({ id, label })); }
+  function answer(id, ctx) {
+    ctx = ctx || {}; const b = ctx.bottle, sel = ctx.sel || E().defaults();
+    if (b) {
+      const sv = E().serve(b, sel, ctxNow());
+      if (id === 'one') return { text: b.one };
+      if (id === 'taste') { const ph = PHRASE[b.kind] || PHRASE.wine; const w = Object.keys(ph).map(k => { const v = b.taste[k] || 3; return v <= 2 ? ph[k][0] : v >= 4 ? ph[k][1] : null; }).filter(Boolean); return { text: `${w.length ? w.join('、') : 'どこにも偏らない、穏やかな釣り合い'}。香りは${(b.aromas || []).slice(0, 3).join('、')}。` }; }
+      if (id === 'serve') return { text: serveSpeech(sv) + (b.kind === 'sake' && b.serve.note ? b.serve.note : '') };
+      if (id === 'food') { const bad = E().foodFits(b).find(f => f.level === 'bad'); return { text: `合うのは、${(b.pairings || []).slice(0, 3).join('、')}。` + (bad ? `${bad.food.name}とは合いません。${bad.reason}` : '') }; }
+      if (id === 'story') { const beats = (b.story && b.story.beats) || []; return { text: beats.slice(0, 2).map(x => x.t).join('') || 'この一本の物語は、まだ収録していません。' }; }
+      if (id === 'wow') return { text: b.wow || 'この一本の「へぇ」は、まだ収録していません。' };
+      if (id === 'order') return { text: b.kind === 'sake' ? `店では「${b.name}を、${sv.bandName}で」と伝えると通じます。` : `店では「${b.name}を、${sv.tempC[0]}度くらいで」と伝えると通じます。`, staffLine: b.kind === 'sake' ? `${b.name}を、${sv.bandName}で` : `${b.name}を、${sv.tempC[0]}℃くらいで` };
+      if (id === 'next') { const lad = E().ladder(b); const i = lad.findIndex(x => x.bottle.id === b.id); const nx = i >= 0 ? lad[i + 1] : null; if (nx) return { text: `同じ造り手の一段上は、${nx.bottle.name}。目安は${yen(nx.bottle.price.min)}から。`, picks: [{ bottle: nx.bottle, name: nx.bottle.name, serve: serveShort(E().serve(nx.bottle, sel, ctxNow())) }] }; return { text: lad.length > 1 ? 'これが、この造り手の頂です。' : 'この造り手の階段は、この一本だけ収録しています。' }; }
+      return null;
+    }
+    const r = E().propose(sel, { seed: new Date().getDate(), ctx: ctxNow() });
+    const it = (r.items || []).find(x => x.role === id);
+    if (!it) return { text: 'いまの条件では、ぴったりの一本が見つかりませんでした。条件を少し変えてみてください。' };
+    const role = (SUI.byIdIn(SUI.ROLES, id) || {}).name || '';
+    return { text: `${role}は、${it.bottle.name}。${String(it.why || '').replace(/。$/, '')}。${serveSpeech(it.serve)}`, picks: [{ bottle: it.bottle, name: it.bottle.name, serve: serveShort(it.serve) }] };
+  }
+
+  /* 読み上げ（イヤホンで聞く想定）。切ると文字だけ */
+  function readOn() { return St() ? St().get('sui.voice.read.v1', true) !== false : true; }
+  function setRead(v) { if (St()) St().set('sui.voice.read.v1', !!v); }
 
   /* ---------- 話す（TTS） ---------- */
   let audioEl = null;
@@ -95,9 +139,11 @@ ${hist || '（最初の発話）'}`;
   }
   /* 返事を文ごとに分け、最初の文を先に鳴らしながら次を作る */
   function chunks(text) { const parts = String(text).split(/(?<=[。！？!?])/).map(t => t.trim()).filter(Boolean); const out = []; parts.forEach(pt => { if (out.length && (out[out.length - 1] + pt).length < 34) out[out.length - 1] += pt; else out.push(pt); }); return out.length ? out : [String(text)]; }
+  /* 読み上げ用に記号を言葉へ（画面の文字はそのまま） */
+  function forSpeech(t) { return String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、'); }
   let speakGen = 0;
   async function speak(text, onStart) {
-    const gen = ++speakGen; const cs = chunks(text); let next = synth(cs[0]);
+    const gen = ++speakGen; const cs = chunks(forSpeech(text)); let next = synth(cs[0]);
     for (let i = 0; i < cs.length; i++) {
       let url; try { url = await next; } catch (e) { return false; }
       if (gen !== speakGen) return false;
@@ -110,10 +156,12 @@ ${hist || '（最初の発話）'}`;
   const FILLERS = ['assets/voice/filler-1.m4a', 'assets/voice/filler-2.m4a', 'assets/voice/filler-3.m4a'];
   function filler() { return play(FILLERS[Math.floor(Math.random() * FILLERS.length)]); }
   function play(dataUrl) {
-    return new Promise(res => { if (!hasDOM) return res(); stopSpeaking(); audioEl = new Audio(dataUrl); audioEl.onended = () => { audioEl = null; res(); }; audioEl.onerror = () => { audioEl = null; res(); }; audioEl.play().catch(() => { audioEl = null; res(); }); });
+    return new Promise(res => { if (!hasDOM) return res(); halt(); audioEl = new Audio(dataUrl); audioEl.onended = () => { audioEl = null; res(); }; audioEl.onerror = () => { audioEl = null; res(); }; audioEl.play().catch(() => { audioEl = null; res(); }); });
   }
-  function stopSpeaking() { speakGen++; if (audioEl) { try { audioEl.pause(); } catch (e) { /* ignore */ } audioEl = null; } }
+  /* 鳴っている音だけ止める（play が次の文を鳴らすときに使う。speak の世代は進めない） */
+  function halt() { if (audioEl) { try { audioEl.pause(); } catch (e) { /* ignore */ } audioEl = null; } }
+  function stopSpeaking() { speakGen++; halt(); }
   function speaking() { return !!audioEl; }
 
-  SUI.voice = { supported, start, stop, recording, ask, synth, speak, filler, chunks, play, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
+  SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, filler, chunks, play, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
 })(globalThis);

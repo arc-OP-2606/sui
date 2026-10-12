@@ -427,7 +427,23 @@ p { margin: 0; }
 .micbtn.speaking { background: var(--ink); }
 .micbtn:disabled { opacity: 0.45; cursor: not-allowed; }
 @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-.vstatus { font-family: var(--font-jp-serif); color: var(--ink2); font-size: 13px; min-height: 1.5em; }
+.vstatus { display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--font-jp-serif); color: var(--ink2); font-size: 13px; min-height: 1.5em; }
+/* ボタンで聞く（店ではイヤホンで。声を出さない） */
+.vhint { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-radius: 14px; font-size: 12px; line-height: 1.5; color: var(--ink2); }
+.vread { flex: 0 0 auto; min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--acc-line); background: var(--acc-soft); color: var(--acc-ink); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.vread[aria-pressed="false"] { background: transparent; border-color: var(--line); color: var(--ink3); }
+.vquick { display: flex; flex-wrap: wrap; gap: 8px; }
+.vquick .chip { min-height: 44px; padding: 6px 14px; font-size: 13.5px; font-family: var(--font-jp-serif); }
+.vquick .chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.vinput { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.vinput input { flex: 1; min-width: 0; min-height: 44px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; outline: none; }
+.vinput input:focus { border-color: var(--acc-line); }
+.vinput input:disabled { opacity: 0.5; }
+.micbtn.sm { width: 44px; height: 44px; flex: 0 0 auto; box-shadow: 0 0 0 calc(2px + 10px * var(--lv, 0)) var(--acc-line); }
+.micbtn.sm svg { width: 20px; height: 20px; }
+.verr { color: #A24E24; }
+:root[data-theme="night"] .verr { color: #E8956A; }
+:is(.vread, .vquick .chip, .micbtn):focus-visible { outline: 2px solid var(--acc-ink); outline-offset: 2px; }
 
 /* toast */
 .toast { position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 13px; z-index: 50; box-shadow: var(--shadow); animation: fadein 0.25s ease; max-width: 90vw; }

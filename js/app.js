@@ -492,40 +492,77 @@
   function voiceCtx() { const c = state.voice.ctx; return { bottle: c.bottleId ? E.byId(c.bottleId) : null, sel: c.sel || (state.touched ? state.sel : E.defaults()) }; }
   function renderVoice() {
     if (!hasDOM) return; let host = document.getElementById('voice'); const v = state.voice; if (!v) { if (host) host.remove(); return; }
+    const prev = document.getElementById('vtext'); const draft = prev ? prev.value : ''; const hadFocus = !!prev && document.activeElement === prev;
     if (!host) { host = document.createElement('div'); host.id = 'voice'; document.body.appendChild(host); }
-    const c = voiceCtx(); const ok = AI() && AI().ok(); const consent = AI() && AI().consent(); const mic = V() && V().supported();
+    const c = voiceCtx(); const ok = AI() && AI().ok(); const consent = AI() && AI().consent(); const mic = V() && V().supported(); const read = V().readOn();
     const title = c.bottle ? `${c.bottle.name} について` : (c.sel && c.sel.place ? `${nameOf(SUI.PLACES, c.sel.place)}で、今夜の一本` : '今夜の一本');
-    const status = { listening: '聞いています…もう一度押すと送ります', thinking: '考えています', speaking: '話しています' }[v.busy] || (v.turns.length ? 'もう一度話す' : 'ボタンを押して、話しかけてください');
+    const status = { listening: '聞いています…話し終わったら、もう一度マイクを押す', thinking: '考えています', speaking: '読み上げています' }[v.busy] || '';
+    const free = ok && consent, thinking = v.busy === 'thinking';
     const turns = v.turns.map(t => t.role === 'user' ? `<div class="vbubble user">${esc(t.text)}</div>` : `<div class="vbubble sui">${esc(t.text)}${t.source ? `<span class="tag src">${esc(t.source)}</span>` : ''}</div>${t.picks && t.picks.length ? `<div class="vpicks">${t.picks.map(p => p.bottle ? `<button class="result" data-act="voice-pick" data-id="${p.bottle.id}"><span class="sw" style="background:${p.bottle.hue}"></span><span><span class="t">${esc(p.bottle.name)}</span><br><span class="d">${esc(p.serve)}</span></span></button>` : `<div class="result"><span class="sw" style="background:var(--bg2)"></span><span><span class="t">${esc(p.name)}</span><br><span class="d">${esc(p.serve)}　<span class="tag src est">推定</span></span></span></div>`).join('')}</div>` : ''}${t.staffLine ? `<div class="staff-card"><div class="eyebrow">店員に見せる</div><div class="big">${esc(t.staffLine)}</div></div>` : ''}`).join('');
     host.innerHTML = `<div class="voice-back" data-act="voice-close"><div class="voice" data-stop="1">
       <div class="grab"></div>
-      <div class="section-head"><div><div class="eyebrow">Talk with sui</div><h2>${esc(title)}</h2></div><button class="iconbtn" data-act="voice-close" aria-label="閉じる">${R.icon('close')}</button></div>
-      ${!ok ? '<div class="card tint"><p class="small">音声ソムリエには読み取りの設定（中継サーバー）が必要です。</p></div>' : !mic ? '<div class="card tint"><p class="small">この環境ではマイクが使えません。アプリ版でお試しください。</p></div>' : !consent ? `<div class="card tint stack"><p class="small">話しかけた声と、あなたの色暦（最近の記録・言葉）を sui の中継サーバー経由で Google Gemini に送って答えます。声は保存されません。</p><button class="btn sm acc" data-act="ai-consent">許可して話す</button></div>` : ''}
-      <div class="vbubbles">${turns || `<p class="small muted">例:「今日は焼き鳥、塩で。さっぱりしたのがいい」「この酒、何と合わせる？」「贈り物にするなら？」</p>`}</div>
-      ${v.err ? `<p class="small" style="color:#A24E24">${esc(v.err)}</p>` : ''}
-      <div class="vcontrols">
-        <button class="micbtn ${v.busy}" data-act="voice-mic" style="--lv:${(v.level || 0).toFixed(2)}" aria-label="話す" ${(!ok || !mic || !consent || v.busy === 'thinking') ? 'disabled' : ''}>${v.busy === 'listening' ? R.icon('check') : v.busy === 'speaking' ? R.icon('close') : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>`}</button>
-        <div class="vstatus">${esc(status)}</div>
-        ${v.lastReply && v.busy === '' ? `<button class="linkbtn" data-act="voice-replay">もう一度聞く</button>` : ''}
+      <div class="section-head"><div><div class="eyebrow">Ask sui</div><h2>${esc(title)}</h2></div><button class="iconbtn" data-act="voice-close" aria-label="閉じる">${R.icon('close')}</button></div>
+      <div class="vhint"><span>イヤホンで聞くのがおすすめ。店では周りに聞こえないように。</span><button class="vread" data-act="voice-read" aria-pressed="${read}">${read ? '読み上げ オン' : '読み上げ オフ'}</button></div>
+      <div class="vbubbles">${turns || '<p class="small muted">聞きたいことのボタンを押すと、sui が答えます。文字や声で自由に聞くこともできます。</p>'}</div>
+      ${v.err ? `<p class="small verr">${esc(v.err)}</p>` : ''}
+      ${status ? `<div class="vstatus">${esc(status)}${v.busy === 'speaking' ? '<button class="linkbtn" data-act="voice-stop">止める</button>' : ''}</div>` : (v.lastReply && read && ok ? '<div class="vstatus"><button class="linkbtn" data-act="voice-replay">もう一度聞く</button></div>' : '')}
+      <div class="vquick">${V().topics(c).map(t => `<button class="chip" data-act="voice-q" data-q="${t.id}"${thinking ? ' disabled' : ''}>${esc(t.label)}</button>`).join('')}</div>
+      ${!ok ? '<p class="small muted">文字や声で自由に聞くには、読み取りの設定（中継サーバー）が必要です。上のボタンはそのまま使えます。</p>' : !consent ? '<div class="card tint stack"><p class="small">文字や声で自由に聞くときは、聞いた内容と、あなたの色暦（最近の記録・言葉）を sui の中継サーバー経由で Google Gemini に送って答えます。声は保存されません。上のボタンは収録データから答えるので、許可しなくても使えます。</p><button class="btn sm acc" data-act="ai-consent">許可する</button></div>' : ''}
+      <div class="vinput">
+        <input id="vtext" type="text" enterkeyhint="send" placeholder="文字で聞く（例: 焼き鳥に合う？）" autocomplete="off" aria-label="文字で聞く"${free ? '' : ' disabled'}>
+        <button class="btn sm" data-act="voice-send"${free && !thinking ? '' : ' disabled'}>送る</button>
+        <button class="micbtn sm ${v.busy}" data-act="voice-mic" aria-label="${v.busy === 'listening' ? '話し終わったら押す' : '声で聞く'}"${(!free || !mic || thinking) ? ' disabled' : ''}>${v.busy === 'listening' ? R.icon('check') : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>'}</button>
       </div>
     </div></div>`;
+    const inp = document.getElementById('vtext'); if (inp && draft) inp.value = draft; if (inp && hadFocus && !inp.disabled) inp.focus();
     const list = host.querySelector('.vbubbles'); if (list) list.scrollTop = list.scrollHeight;
+  }
+  /* 答えを読み上げる（設定がオンで、中継サーバーがあるときだけ。文字は先に出ている） */
+  async function voiceSay(v, text) {
+    if (!(V().readOn() && AI() && AI().ok())) { if (state.voice === v) { v.busy = ''; renderVoice(); } return; }
+    v.busy = 'speaking'; renderVoice();
+    try { await V().speak(text); } catch (e) { /* 読めなくても文字は出ている */ }
+    if (state.voice === v && v.busy === 'speaking') { v.busy = ''; renderVoice(); }
+  }
+  /* ボタンで聞く: 収録データから答える（AI を呼ばない） */
+  async function voiceQuick(id) {
+    const v = state.voice; if (!v || v.busy === 'thinking') return;
+    const c = voiceCtx(); const t = V().topics(c).find(x => x.id === id); const a = t && V().answer(id, c); if (!a) return;
+    V().stopSpeaking();
+    v.turns.push({ role: 'user', text: t.label });
+    v.turns.push({ role: 'sui', text: a.text, picks: a.picks || [], staffLine: a.staffLine || null, source: '蔵DB' });
+    v.lastReply = a.text; v.err = '';
+    await voiceSay(v, a.text);
+  }
+  /* 文字で聞く: AI が答える（許可が要る） */
+  async function voiceSend() {
+    const v = state.voice; if (!v || v.busy === 'thinking' || !(AI() && AI().ok() && AI().consent())) return;
+    const el = document.getElementById('vtext'); const text = el ? el.value.trim() : ''; if (!text) return;
+    el.value = ''; V().stopSpeaking();
+    const hist = v.turns.map(t => ({ role: t.role, text: t.text }));
+    v.turns.push({ role: 'user', text }); v.busy = 'thinking'; v.err = ''; renderVoice();
+    try {
+      const d = await V().askText(text, voiceCtx(), hist);
+      if (state.voice !== v) return;
+      v.turns.push({ role: 'sui', text: d.reply, picks: d.picks, staffLine: d.staffLine || null, source: d.source });
+      v.lastReply = d.reply;
+      await voiceSay(v, d.reply);
+    } catch (e) { if (state.voice === v) { v.err = e.status === 429 ? '少し混み合っています。数秒おいて、もう一度。' : '答えを作れませんでした。もう一度どうぞ。'; v.busy = ''; renderVoice(); } }
   }
   async function voiceMic() {
     const v = state.voice; if (!v) return;
     if (v.busy === 'speaking') { V().stopSpeaking(); v.busy = ''; renderVoice(); return; }
     if (v.busy === 'listening') { /* 送る */
       let audio; try { audio = await V().stop(); } catch (e) { v.busy = ''; v.err = e.message === 'too-short' ? '短すぎました。もう少し長く話してください。' : '録音できませんでした。'; renderVoice(); return; }
-      v.busy = 'thinking'; v.err = ''; renderVoice(); V().filler().catch(() => {});
+      v.busy = 'thinking'; v.err = ''; renderVoice(); if (V().readOn()) V().filler().catch(() => {});
       try {
         const hist = v.turns.map(t => ({ role: t.role, text: t.text }));
         const d = await V().ask(audio, voiceCtx(), hist);
         if (!state.voice || state.voice !== v) return;
         if (d.transcript) v.turns.push({ role: 'user', text: d.transcript });
         v.turns.push({ role: 'sui', text: d.reply, picks: d.picks, staffLine: d.staffLine || null, source: d.source });
-        v.lastReply = d.reply; v.busy = 'speaking'; renderVoice();
-        V().stopSpeaking();
-        await V().speak(d.reply);
+        v.lastReply = d.reply; V().stopSpeaking();
+        if (V().readOn()) { v.busy = 'speaking'; renderVoice(); await V().speak(d.reply); }
       } catch (e) { v.err = e.status === 429 ? '少し混み合っています。数秒おいて、もう一度。' : '聞き取れませんでした。もう一度どうぞ。'; }
       if (state.voice === v) { v.busy = ''; renderVoice(); }
       return;
@@ -695,6 +732,10 @@
       case 'voice-open': openVoice({ bottleId: el.dataset.id || null, sel: el.dataset.sel ? state.sel : null }); break;
       case 'voice-close': closeVoice(); break;
       case 'voice-mic': voiceMic(); break;
+      case 'voice-q': voiceQuick(el.dataset.q); break;
+      case 'voice-send': voiceSend(); break;
+      case 'voice-read': V().setRead(!V().readOn()); if (!V().readOn()) { V().stopSpeaking(); if (state.voice && state.voice.busy === 'speaking') state.voice.busy = ''; } renderVoice(); break;
+      case 'voice-stop': V().stopSpeaking(); if (state.voice) { state.voice.busy = ''; renderVoice(); } break;
       case 'voice-replay': if (state.voice && state.voice.lastReply) { state.voice.busy = 'speaking'; renderVoice(); V().speak(state.voice.lastReply).then(() => { if (state.voice) { state.voice.busy = ''; renderVoice(); } }); } break;
       case 'voice-pick': closeVoice(); go('card', { current: el.dataset.id, similarOpen: false, wowFlipped: false }); break;
       case 'sheet-close': state.sheet = null; renderSheet(); break;
@@ -733,7 +774,7 @@
       if (!el) return; if (el.dataset.act === 'sheet-close' && stop && stop !== el && el.contains(stop)) return;
       e.preventDefault(); act(el, e);
     });
-    document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.ring-seg, .wow')) act(e.target); });
+    document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.ring-seg, .wow')) act(e.target); if (e.key === 'Enter' && e.target.id === 'vtext' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); voiceSend(); } });
     document.addEventListener('input', e => { if (e.target.id === 'q') { state.searchQ = e.target.value; const list = document.querySelector('.result-list'); if (list) { const tmp = document.createElement('div'); tmp.innerHTML = views.search(); list.innerHTML = tmp.querySelector('.result-list').innerHTML; } } });
     document.getElementById('file').addEventListener('change', e => onFile(e.target.files && e.target.files[0]));
     setInterval(() => { if (St.get(St.KEYS.theme, 'night') === 'auto') { const t = document.documentElement.dataset.theme; if (t !== E.daypart()) render(); } }, 60000);
