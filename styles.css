@@ -429,6 +429,7 @@ p { margin: 0; }
 @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 .vstatus { display: flex; align-items: center; justify-content: center; gap: 12px; font-family: var(--font-jp-serif); color: var(--ink2); font-size: 13px; min-height: 1.5em; }
 /* ボタンで聞く（店ではイヤホンで。声を出さない） */
+#voice .section-head { flex-wrap: nowrap; align-items: flex-start; } #voice .section-head > div { flex: 1; min-width: 0; } #voice .section-head .iconbtn { flex-shrink: 0; } #voice .section-head h2 .nm { display: inline-block; } /* 長い銘柄名でも × を右上に */
 .vhint { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-radius: 14px; font-size: 12px; line-height: 1.5; color: var(--ink2); }
 .vread { flex: 0 0 auto; min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--acc-line); background: var(--acc-soft); color: var(--acc-ink); font-size: 12px; cursor: pointer; white-space: nowrap; }
 .vread[aria-pressed="false"] { background: transparent; border-color: var(--line); color: var(--ink3); }

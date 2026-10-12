@@ -145,7 +145,7 @@
         <div class="ch-shoot"><button class="ch-shootbtn" data-act="shoot" aria-label="撮る">${R.icon('camera')}<span>撮る</span></button><p>ラベルを撮って、<br>一杯を記録する</p></div>
       </section>
       <div class="ch-season"><span class="en">Season</span><span>${esc(season.line)}</span></div>
-      ${pick ? `<div class="ch-tonight"><button class="ch-pick" data-act="card" data-id="${pick.bottle.id}">${dropOf(pick.bottle, 64, { night: true })}<span class="body"><span class="cv-kicker">${night ? '今夜' : '今日'}の${esc(nameOf(SUI.ROLES, pick.role))} · ${pick.bottle.kind === 'wine' ? 'WINE' : 'SAKE'}</span><span class="nm">${esc(pick.bottle.name)}</span><span class="why">${esc(pick.why)}</span><span class="srv">${esc(serveLine(pick.serve))}</span></span></button><span class="row"><button class="linkbtn" data-act="nav" data-view="explore">条件を変えて探す</button><button class="linkbtn" data-act="voice-open">sui と話して決める</button></span></div>` : ''}
+      ${pick ? `<div class="ch-tonight"><button class="ch-pick" data-act="card" data-id="${pick.bottle.id}">${dropOf(pick.bottle, 64, { night: true })}<span class="body"><span class="cv-kicker">${night ? '今夜' : '今日'}の${esc(nameOf(SUI.ROLES, pick.role))} · ${pick.bottle.kind === 'wine' ? 'WINE' : 'SAKE'}</span><span class="nm">${esc(pick.bottle.name)}</span><span class="why">${esc(pick.why)}</span><span class="srv">${esc(serveLine(pick.serve))}</span></span></button><span class="row"><button class="linkbtn" data-act="nav" data-view="explore">条件を変えて探す</button><button class="linkbtn" data-act="voice-open">sui に聞いて決める</button></span></div>` : ''}
       <div class="ch-features">
         <div class="ch-sechead"><h2>特集</h2><span class="cv-kicker">FEATURES</span></div>
         ${feats.map(([n, v, t, d]) => `<button class="ch-feat" data-act="nav" data-view="${v}"><span class="no">${n}</span><span class="tx"><span class="t">${t}</span><span class="d">${d}</span></span>${R.icon('next')}</button>`).join('')}
@@ -229,7 +229,7 @@
         <button class="btn ghost" data-act="similar">${R.icon('refresh')}似た酒</button>
         <button class="btn ghost" data-act="explore-from" data-id="${b.id}">${R.icon('compass')}この酒で探す</button>
       </div>
-      <button class="btn block" data-act="voice-open" data-id="${b.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>この酒について、sui と話す</button>
+      <button class="btn block" data-act="voice-open" data-id="${b.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:18px;height:18px"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="1.5"/><rect x="16.5" y="14" width="4.5" height="7" rx="1.5"/></svg>この酒について、sui に聞く</button>
       ${state.similarOpen ? `<div class="section">${sectionHead('似た酒', 'Similar')}<div class="result-list">${E.similar(b, 3).map(o => `<button class="result" data-act="card" data-id="${o.id}"><span class="sw" style="background:${o.hue}"></span><span><span class="t">${esc(o.name)}</span><br><span class="d">${esc(o.producer)} · ${esc(priceText(o))}</span></span></button>`).join('')}</div></div>` : ''}
     </div>`;
   };
@@ -328,7 +328,7 @@
     const ctx = seasonCtx(); const r = E.propose(state.sel, { seed: state.seed, ctx });
     return `<div class="view">${chipsBar()}
       <div class="card tint situation"><div class="eyebrow">Situation</div><h2>${esc(situationName(state.sel, ctx))}</h2><p class="small">${esc(principle(state.sel, ctx))}</p>${r.relaxed.length ? `<p class="small muted">${esc(r.relaxed.join('。'))}。</p>` : ''}${['izakaya', 'restaurant', 'bar'].includes(state.sel.place) ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="nav" data-view="shop">${R.icon('camera')}品書きを撮って選ぶ</button></div>` : ''}</div>
-      <div class="section">${sectionHead('提案', 'Proposals', `<span class="row"><button class="linkbtn" data-act="voice-open" data-sel="1">話して決める</button><button class="linkbtn" data-act="reseed">ほかの案</button></span>`)}
+      <div class="section">${sectionHead('提案', 'Proposals', `<span class="row"><button class="linkbtn" data-act="voice-open" data-sel="1">sui に聞く</button><button class="linkbtn" data-act="reseed">ほかの案</button></span>`)}
       <div class="proposals">${r.items.map(it => `<button class="proposal" data-act="card" data-id="${it.bottle.id}"><span class="sw">${R.glass(Object.assign({ hue: it.bottle.hue, size: 72, seed: 3, night: isNight(), sparkle: false }, glassFor(it.bottle)))}</span><span class="body"><span class="row"><span class="role ${it.role}">${esc(nameOf(SUI.ROLES, it.role))}</span><span class="small muted">${esc(KINDNAME[it.bottle.kind])} · ${esc(priceText(it.bottle))}</span></span><span class="nm ${it.bottle.kind}">${esc(it.bottle.name)}</span><span class="why">${esc(it.why)}</span><span class="srv">${esc(serveLine(it.serve))}</span></span></button>`).join('')}</div></div>
       <p class="small faint">価格は目安（店・時期で変動）。条件は上のチップから、いつでも変えられます。</p>
     </div>`;
@@ -380,7 +380,7 @@
     const sh = state.shop || {}; const en = St.get('sui.en.v1', false);
     const body = sh.busy ? `${R.pour({ hue: state.accent })}<p class="status-line">${esc(sh.msg || '品書きを読んでいます')}</p>`
       : sh.result ? renderShopResult(sh.result, en)
-      : `<p class="status-line">品書き（メニュー）を正面から。縦書きは読めた分だけ使います。</p><div class="btnrow"><button class="btn acc" data-act="shop-shoot">${R.icon('camera')}品書きを撮る</button><button class="btn ghost" data-act="voice-open" data-sel="1">話して決める</button></div>`;
+      : `<p class="status-line">品書き（メニュー）を正面から。縦書きは読めた分だけ使います。</p><div class="btnrow"><button class="btn acc" data-act="shop-shoot">${R.icon('camera')}品書きを撮る</button><button class="btn ghost" data-act="voice-open" data-sel="1">sui に聞く</button></div>`;
     return `<div class="view capture"><div class="eyebrow">At the table</div><h1>店で</h1>
       <div class="chips">${['izakaya', 'restaurant', 'bar'].map(p => `<button class="chip ${state.sel.place === p ? 'active' : ''}" data-act="shop-place" data-val="${p}">${esc(nameOf(SUI.PLACES, p))}</button>`).join('')}<button class="chip ${en ? 'active' : ''}" data-act="shop-en">English</button></div>
       ${body}${sh.result ? `<div class="btnrow"><button class="btn ghost sm" data-act="shop-shoot">別の品書きを撮る</button></div>` : ''}
@@ -501,7 +501,7 @@
     const turns = v.turns.map(t => t.role === 'user' ? `<div class="vbubble user">${esc(t.text)}</div>` : `<div class="vbubble sui">${esc(t.text)}${t.source ? `<span class="tag src">${esc(t.source)}</span>` : ''}</div>${t.picks && t.picks.length ? `<div class="vpicks">${t.picks.map(p => p.bottle ? `<button class="result" data-act="voice-pick" data-id="${p.bottle.id}"><span class="sw" style="background:${p.bottle.hue}"></span><span><span class="t">${esc(p.bottle.name)}</span><br><span class="d">${esc(p.serve)}</span></span></button>` : `<div class="result"><span class="sw" style="background:var(--bg2)"></span><span><span class="t">${esc(p.name)}</span><br><span class="d">${esc(p.serve)}　<span class="tag src est">推定</span></span></span></div>`).join('')}</div>` : ''}${t.staffLine ? `<div class="staff-card"><div class="eyebrow">店員に見せる</div><div class="big">${esc(t.staffLine)}</div></div>` : ''}`).join('');
     host.innerHTML = `<div class="voice-back" data-act="voice-close"><div class="voice" data-stop="1">
       <div class="grab"></div>
-      <div class="section-head"><div><div class="eyebrow">Ask sui</div><h2>${esc(title)}</h2></div><button class="iconbtn" data-act="voice-close" aria-label="閉じる">${R.icon('close')}</button></div>
+      <div class="section-head"><div><div class="eyebrow">Ask sui</div><h2>${c.bottle ? `<span class="nm">${esc(c.bottle.name)}</span> について` : esc(title)}</h2></div><button class="iconbtn" data-act="voice-close" aria-label="閉じる">${R.icon('close')}</button></div>
       <div class="vhint"><span>イヤホンで聞くのがおすすめ。店では周りに聞こえないように。</span><button class="vread" data-act="voice-read" aria-pressed="${read}">${read ? '読み上げ オン' : '読み上げ オフ'}</button></div>
       <div class="vbubbles">${turns || '<p class="small muted">聞きたいことのボタンを押すと、sui が答えます。文字や声で自由に聞くこともできます。</p>'}</div>
       ${v.err ? `<p class="small verr">${esc(v.err)}</p>` : ''}
