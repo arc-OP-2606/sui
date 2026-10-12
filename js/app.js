@@ -262,7 +262,7 @@
     if (k === 'wow') return `<div class="panel">${H('へぇ', 'Did you know')}<span class="tag src">蔵DB確認済み</span><div class="wow ${state.wowFlipped ? 'flipped' : ''}" data-act="flip" role="button" tabindex="0"><div class="face front"><div class="q">この一本の、意外な話。<br><span class="small muted">タップしてめくる</span></div></div><div class="face back"><p>${esc(b.wow)}</p></div></div></div>`;
     if (k === 'ladder') {
       const steps = E.ladder(b); const i = steps.findIndex(s => s.bottle.id === b.id); const next = steps[i + 1];
-      return `<div class="panel card">${H('階段', 'Ladder')}<p class="small muted">${esc(b.producer)}の、日常酒から旗艦まで。</p><div class="ladder-wrap">${R.ladder(steps, b.id)}</div><div class="steps-row">${steps.map(s => `<button class="ladder-step" data-act="card" data-id="${s.bottle.id}"><span class="sw" style="background:${s.bottle.hue}"></span><span class="t">${segs(s.bottle.name)}${s.bottle.id === b.id ? '<span class="small muted">　いまここ</span>' : ''}</span><span class="p">${esc(priceText(s.bottle))}</span></button>`).join('')}</div>${next ? `<button class="btn sm acc" data-act="card" data-id="${next.bottle.id}">次の一段、${segs(next.bottle.name)}を見る</button>` : steps.length > 1 ? '<p class="small muted">ここが、この造り手の頂。</p>' : ''}</div>`;
+      return `<div class="panel card">${H('階段', 'Ladder')}<p class="small muted">${esc(b.producer)}の、日常酒から旗艦まで。</p><div class="ladder-wrap">${R.ladder(steps, b.id)}</div><div class="steps-row">${steps.map(s => `<button class="ladder-step" data-act="card" data-id="${s.bottle.id}"><span class="sw" style="background:${s.bottle.hue}"></span><span class="t">${segs(s.bottle.name)}${s.bottle.id === b.id ? '<span class="small muted">　いまここ</span>' : ''}</span><span class="p">${esc(priceText(s.bottle))}</span></button>`).join('')}</div>${next ? `<button class="btn sm acc" data-act="card" data-id="${next.bottle.id}"><span>次の一段、${segs(next.bottle.name)}を見る</span></button>` : steps.length > 1 ? '<p class="small muted">ここが、この造り手の頂。</p>' : ''}</div>`;
     }
     if (k === 'label') return `<div class="panel card">${H('ラベルの読み方', 'Label')}<div class="anatomy">${R.labelAnatomy(b.kind)}</div><ol class="notes" style="counter-reset:n">${SUI.ANATOMY[b.kind].map(a => `<li><b>${a.n}. ${esc(a.name)}</b>　${esc(a.d)}</li>`).join('')}</ol>${b.vintageHint ? `<p class="small muted">${esc(b.vintageHint)}</p>` : ''}<p class="small muted">見た目: ${esc(b.cues)}</p></div>`;
     return '';
@@ -498,7 +498,7 @@
     if (!host) { host = document.createElement('div'); host.id = 'voice'; document.body.appendChild(host); }
     const c = voiceCtx(); const ok = AI() && AI().ok(); const consent = AI() && AI().consent(); const mic = V() && V().supported(); const read = V().readOn();
     const title = c.bottle ? `${c.bottle.name} について` : (c.sel && c.sel.place ? `${nameOf(SUI.PLACES, c.sel.place)}で、今夜の一本` : '今夜の一本');
-    const status = { listening: '聞いています…話し終わったら、もう一度マイクを押す', thinking: '考えています', preparing: '声を用意しています…', speaking: '読み上げています' }[v.busy] || '';
+    const status = { listening: '聞いています…話し終わったら、もう一度マイクを押す', thinking: '考えています', preparing: '声を用意しています…', speaking: v.engine === 'device' ? '読み上げています（端末の声）' : '読み上げています' }[v.busy] || '';
     const free = ok && consent, thinking = v.busy === 'thinking';
     const turns = v.turns.map(t => t.role === 'user' ? `<div class="vbubble user">${esc(t.text)}</div>` : `<div class="vbubble sui">${esc(t.text)}${t.source ? `<span class="tag src">${esc(t.source)}</span>` : ''}</div>${t.picks && t.picks.length ? `<div class="vpicks">${t.picks.map(p => p.bottle ? `<button class="result" data-act="voice-pick" data-id="${p.bottle.id}"><span class="sw" style="background:${p.bottle.hue}"></span><span><span class="t">${esc(p.bottle.name)}</span><br><span class="d">${esc(p.serve)}</span></span></button>` : `<div class="result"><span class="sw" style="background:var(--bg2)"></span><span><span class="t">${esc(p.name)}</span><br><span class="d">${esc(p.serve)}　<span class="tag src est">推定</span></span></span></div>`).join('')}</div>` : ''}${t.staffLine ? `<div class="staff-card"><div class="eyebrow">店員に見せる</div><div class="big">${esc(t.staffLine)}</div></div>` : ''}`).join('');
     host.innerHTML = `<div class="voice-back" data-act="voice-close"><div class="voice" data-stop="1">
@@ -523,7 +523,7 @@
   async function voiceSay(v, text) {
     if (!(V().readOn() && AI() && AI().ok())) { if (state.voice === v) { v.busy = ''; renderVoice(); } return; }
     v.busy = 'preparing'; v.err = ''; renderVoice();
-    let ok = false; try { ok = await V().speak(text, () => { if (state.voice === v && v.busy === 'preparing') { v.busy = 'speaking'; renderVoice(); } }); } catch (e) { /* 読めなくても文字は出ている */ }
+    let ok = false; try { ok = await V().speak(text, engine => { if (state.voice === v && v.busy === 'preparing') { v.busy = 'speaking'; v.engine = engine; renderVoice(); } }); } catch (e) { /* 読めなくても文字は出ている */ }
     if (state.voice === v && (v.busy === 'speaking' || v.busy === 'preparing')) {
       const p = ok ? '' : V().problem();
       v.busy = ''; if (p) v.err = p === 'play' ? '音を出せませんでした。音量と消音（マナーモード）を確かめて、「もう一度聞く」を押してください。' : '声を用意できませんでした（通信）。「もう一度聞く」を押してください。';

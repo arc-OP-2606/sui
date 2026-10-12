@@ -150,10 +150,20 @@ ${hist || '（最初の発話）'}`;
     const job = i => { if (i < cs.length && !jobs[i]) { jobs[i] = synth(cs[i]); jobs[i].catch(() => {}); } return jobs[i]; };
     job(0); job(1);
     for (let i = 0; i < cs.length; i++) {
-      let url; try { url = await job(i); } catch (e) { if (gen === speakGen) problemNow = 'synth'; return false; }
+      let url; try { url = await job(i); } catch (e) {
+        if (gen !== speakGen) return false;
+        /* Gemini の声が使えない（1日の上限・通信）→ 残りを端末の声で読む */
+        if (canDevice()) {
+          if (i === 0 && onStart) onStart('device');
+          const ok = await sayDevice(cs.slice(i).join('')); if (gen !== speakGen) return false;
+          if (!ok) { problemNow = 'play'; return false; }
+          return true;
+        }
+        problemNow = 'synth'; return false;
+      }
       if (gen !== speakGen) return false;
       job(i + 2);
-      if (i === 0 && onStart) onStart();
+      if (i === 0 && onStart) onStart('gemini');
       const ok = await play(url); if (gen !== speakGen) return false;
       if (!ok) { problemNow = 'play'; return false; }
     }
@@ -167,7 +177,23 @@ ${hist || '（最初の発話）'}`;
   const SILENT = 'data:audio/wav;base64,' + wavBase64(new Int16Array(480), 24000);
   let el = null, pending = null, unlocked = false, unlockGen = 0, problemNow = '';
   function element() { if (!el) { el = new Audio(); el.preload = 'auto'; try { el.setAttribute('playsinline', ''); } catch (e) { /* ignore */ } } return el; }
+  /* 端末の声（Web Speech API。iPhone・Mac の内蔵音声）。Gemini の読み上げには1日の回数の上限があるので、その代わりに使う */
+  let primed = false;
+  function canDevice() { return !!(global.speechSynthesis && global.SpeechSynthesisUtterance); }
+  function deviceVoice() {
+    try { const vs = global.speechSynthesis.getVoices().filter(v => /^ja/i.test(v.lang) && !/Eddy|Flo|Grandma|Grandpa|Reed|Rocko|Sandy|Shelley/i.test(v.name)); /* 遊びの声（おばあちゃん等）は使わない */ return vs.find(v => /enhanced|premium|拡張/i.test(v.name)) || vs.find(v => /Kyoko|O-ren/i.test(v.name)) || vs[0] || null; } catch (e) { return null; }
+  }
+  function sayDevice(text) {
+    return new Promise(res => {
+      try {
+        const u = new global.SpeechSynthesisUtterance(text); u.lang = 'ja-JP'; const v = deviceVoice(); if (v) u.voice = v;
+        u.onend = () => res(true); u.onerror = e => res(!!(e && /interrupted|canceled/.test(e.error)));
+        global.speechSynthesis.speak(u);
+      } catch (e) { res(false); }
+    });
+  }
   function unlock() {
+    if (canDevice() && !primed) { try { const u = new global.SpeechSynthesisUtterance(' '); u.volume = 0; global.speechSynthesis.speak(u); primed = true; } catch (e) { /* ignore */ } } /* iPhone は最初の1回をボタンの中で鳴らす必要がある */
     if (!hasDOM) return;
     try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch (e) { /* ignore */ }
     if (unlocked || pending) return;
@@ -187,8 +213,8 @@ ${hist || '（最初の発話）'}`;
   }
   /* 鳴っている音だけ止める（play が次の文を鳴らすときに使う。speak の世代は進めない） */
   function halt() { if (pending) { const f = pending; try { el.pause(); } catch (e) { /* ignore */ } f(true); } }
-  function stopSpeaking() { speakGen++; halt(); }
-  function speaking() { return !!pending; }
+  function stopSpeaking() { speakGen++; halt(); if (canDevice()) { try { global.speechSynthesis.cancel(); } catch (e) { /* ignore */ } } }
+  function speaking() { return !!pending || !!(canDevice() && global.speechSynthesis.speaking); }
   function problem() { return problemNow; } /* 直前の speak が失敗した理由: 'synth'（声を作れない）／'play'（鳴らせない）／''（成功・止めた） */
 
   SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, filler, chunks, play, unlock, problem, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
