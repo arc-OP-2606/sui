@@ -445,5 +445,21 @@ ${splash}
 </svg>`;
   }
 
-  SUI.render = { glass, drop, pour, bottle, thermo, tasteBars, quadrant, ladder, labelAnatomy, moodRing, icon, cover, PROFILES, esc };
+
+  /* 一本の線: 創業から今夜までの帯（engine.timelineOf の結果を描く）。色は currentColor と --acc。 */
+  function lineband(t, opts) {
+    if (!t) return '';
+    const o = opts || {}, W = o.width || 320, H = 64, L = 14, R = W - 14, Y = 30;
+    const X = x => (L + (R - L) * x).toFixed(1);
+    const fx = X(t.fold);
+    const ticks = t.ticks.map(k => `<line x1="${X(k.x)}" y1="${Y - 5}" x2="${X(k.x)}" y2="${Y + 5}" stroke="currentColor" stroke-opacity=".5"/><text x="${X(k.x)}" y="${Y + 20}" text-anchor="${k.x === 0 ? 'start' : 'middle'}" font-size="10" fill="currentColor" fill-opacity=".6">${esc(k.label)}</text>`).join('');
+    const drops = t.mine.map(m => `<circle class="${m.tonight ? 'lb-tonight' : 'lb-past'}" cx="${X(m.x)}" cy="${Y}" r="${m.tonight ? 6 : 4.5}" fill="${m.hue && /^#[0-9a-f]{6}$/i.test(m.hue) ? m.hue : 'var(--acc, #C9A45C)'}" stroke="var(--acc, #C9A45C)" stroke-width="1.2"/>`).join('');
+    return `<svg class="lineband" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(t.founded + '年の創業から' + t.nowY + '年の今夜まで')}">`
+      + `<line x1="${L}" y1="${Y}" x2="${(Number(fx) - 6).toFixed(1)}" y2="${Y}" stroke="currentColor" stroke-opacity=".35"/>`
+      + `<text x="${fx}" y="${Y + 3}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".5">…</text>`
+      + `<line x1="${(Number(fx) + 6).toFixed(1)}" y1="${Y}" x2="${R}" y2="${Y}" stroke="var(--acc, #C9A45C)" stroke-opacity=".9" stroke-width="1.4"/>`
+      + ticks + drops
+      + `<text x="${R}" y="${Y + 20}" text-anchor="end" font-size="10" fill="var(--acc, #C9A45C)">${esc(t.line ? '今夜' : String(t.nowY))}</text></svg>`;
+  }
+  SUI.render = { glass, drop, pour, bottle, thermo, tasteBars, quadrant, ladder, labelAnatomy, moodRing, icon, cover, PROFILES, esc, lineband };
 })(globalThis);

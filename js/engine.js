@@ -257,5 +257,40 @@
     return C.rgbToHex(m[0], m[1], m[2]);
   }
 
-  SUI.engine = { all, byId: bottleById, defaults, seasonOf, daypart, score, propose, serve, why, ladder, ladders, search, similar, colorTokens, mapXY, avgHue, budgetMax, TIER_RANK, norm, foodFit, foodFits, wineStyle, archetype, monthStats, ARCHETYPES };
+
+  /* 一本の線: 蔵の創業から今夜までの帯。材料は収録DBの創業年・本人の記録・端末の時計だけ（推定なし）。
+     ワインは創業年の意味（蔵／銘柄／日本発売）が混ざるため、検証が済むまで出さない。 */
+  const YEAR_MS = 365 * 24 * 3600 * 1000;
+  function timelineOf(b, records, opts) {
+    const o = opts || {};
+    if (!b || b.kind !== 'sake' || !b.story || !(b.story.founded > 1000)) return null;
+    const tonight = o.tonight || null;
+    const nowTs = tonight ? tonight.ts : (o.now || Date.now());
+    const nowD = new Date(nowTs), nowY = nowD.getFullYear(), founded = b.story.founded;
+    const ids = ladder(b).map(x => x.bottle.id);
+    const past = (records || []).filter(r => r && ids.includes(r.bottleId) && !r.quiet && (!tonight || (r.id !== tonight.id && r.ts < tonight.ts))).sort((p, q) => q.ts - p.ts);
+    const season = (SUI.SEASONS.find(s => s.id === seasonOf(nowD)) || {}).name || '';
+    const line = tonight ? `今夜、あなた。${b.producer}、創業から${nowY - founded}年の${season}。` : null;
+    const last = past[0] || null;
+    const word = tonight ? (!last ? '初めて' : (nowTs - last.ts >= YEAR_MS ? '久しぶり' : 'また')) : null;
+    let recall = null;
+    if (tonight && last && o.recall !== false) {
+      const lb = bottleById(last.bottleId), d = new Date(last.ts);
+      const band = last.band ? (SUI.TEMPS.find(t => t.id === last.band) || {}).name : null;
+      const said = last.word && last.word.trim() ? `『${last.word.trim()}』` : '';
+      recall = `${word}。前は ${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}、${lb ? lb.name : last.name}${band ? 'を' + band + 'で' : ''}。${said}`;
+    }
+    /* 折れ尺: 創業〜「自分の雫のいちばん古い年」を幅の60%、そこから今夜までを40%（雫が重ならないように） */
+    const yearOf = ts => { const d = new Date(ts); return d.getFullYear() + d.getMonth() / 12; };
+    const drops = (tonight ? [Object.assign({ tonight: true }, tonight)] : []).concat(past).slice(0, 2);
+    const nowF = yearOf(nowTs), FOLD = 0.6;
+    const oldest = drops.length ? Math.min.apply(null, drops.map(r => yearOf(r.ts))) : nowF;
+    const recentFrom = Math.max(founded + 1, Math.min(nowY - 1, Math.floor(oldest)));
+    const x = y => y <= recentFrom ? FOLD * (y - founded) / Math.max(1, recentFrom - founded) : FOLD + (1 - FOLD) * Math.min(1, (y - recentFrom) / Math.max(0.5, nowF - recentFrom));
+    const ticks = [{ y: founded, x: 0, label: String(founded) }].concat((b.story.beats || []).map(bt => Number(bt.y)).filter(y => y > founded && y < nowY).map(y => ({ y, x: x(y), label: String(y) })));
+    const mine = drops.map(r => ({ id: r.id, ts: r.ts, hue: r.hue || null, tonight: !!r.tonight, x: r.tonight ? 1 : Math.min(1, x(yearOf(r.ts))) }));
+    if (mine.length === 2 && mine[0].x - mine[1].x < 0.05) mine[1].x = Math.max(0, mine[0].x - 0.05); /* 同じ月の雫も並んで見えるように */
+    return { founded, nowY, years: nowY - founded, producer: b.producer, line, word, recall, last, ticks, mine, fold: FOLD };
+  }
+  SUI.engine = { all, byId: bottleById, defaults, seasonOf, daypart, score, propose, serve, why, ladder, ladders, search, similar, colorTokens, mapXY, avgHue, budgetMax, TIER_RANK, norm, foodFit, foodFits, wineStyle, archetype, monthStats, ARCHETYPES, timelineOf };
 })(globalThis);

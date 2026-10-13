@@ -39,6 +39,7 @@
   state.history = [];
   function go(view, params) {
     if (state.voice) closeVoice();
+    if (hasDOM) closeLineNight();
     if (state.view !== view || (params && params.current && params.current !== state.current)) { state.history.push(snapshot()); if (state.history.length > 40) state.history.shift(); }
     Object.assign(state, params || {}); state.view = view; render(); if (hasDOM) window.scrollTo({ top: 0 });
   }
@@ -258,7 +259,7 @@
         <div class="fits">${E.foodFits(b).map(f => `<div class="fit ${FIT[f.level][1]}"><span class="fn">${esc(f.food.name)}</span><span class="fl">${FIT[f.level][0]}</span><span class="fr">${esc(f.reason)}</span></div>`).join('')}</div>
         <p class="small faint">相性は同調・補完・対比の基本則から。「合わない」も正直に。</p></div>`;
     }
-    if (k === 'story') return `<div class="panel card">${H('物語', 'Story')}<span class="tag src">蔵DB確認済み</span><div class="timeline">${b.story.beats.map(x => `<div class="beat"><div class="y">${esc(x.y)}</div><div>${esc(x.t)}</div></div>`).join('')}</div><dl class="kv"><dt>創業</dt><dd>${b.story.founded}年${b.story.founder ? '　' + esc(b.story.founder) : ''}</dd><dt>土地</dt><dd>${esc(b.country)}　${esc(b.region)}</dd></dl></div>`;
+    if (k === 'story') return `<div class="panel card">${H('物語', 'Story')}<span class="tag src">蔵DB確認済み</span>${(() => { const t = E.timelineOf(b, St.records(), {}); return t ? `<div class="ln-story">${R.lineband(t)}${t.mine.length ? `<p class="small muted">右端の雫は、あなたがこの蔵を飲んだ夜。</p>` : ''}</div>` : ''; })()}<div class="timeline">${b.story.beats.map(x => `<div class="beat"><div class="y">${esc(x.y)}</div><div>${esc(x.t)}</div></div>`).join('')}</div><dl class="kv"><dt>創業</dt><dd>${b.story.founded}年${b.story.founder ? '　' + esc(b.story.founder) : ''}</dd><dt>土地</dt><dd>${esc(b.country)}　${esc(b.region)}</dd></dl></div>`;
     if (k === 'wow') return `<div class="panel">${H('へぇ', 'Did you know')}<span class="tag src">蔵DB確認済み</span><div class="wow ${state.wowFlipped ? 'flipped' : ''}" data-act="flip" role="button" tabindex="0"><div class="face front"><div class="q">この一本の、意外な話。<br><span class="small muted">タップしてめくる</span></div></div><div class="face back"><p>${esc(b.wow)}</p></div></div></div>`;
     if (k === 'ladder') {
       const steps = E.ladder(b); const i = steps.findIndex(s => s.bottle.id === b.id); const next = steps[i + 1];
@@ -373,7 +374,7 @@
       <div class="hero-card">${R.drop({ hue: recordHue(r), size: 140, night: isNight(), rim: true })}<div class="name ${r.kind === 'sake' ? 'sake' : ''}" style="font-size:${r.kind === 'sake' ? 34 : 24}px">${esc(r.name)}</div><div class="maker">${esc(fmtDate(r.ts))}　${esc(nameOf(SUI.PLACES, r.place))}${r.with ? '　' + esc(nameOf(SUI.WITH, r.with)) + 'と' : ''}</div>
       <div class="rating">${[1, 2, 3, 4, 5].map(i => `<span style="color:${i <= (r.rating || 0) ? 'var(--acc)' : 'var(--line)'}">${R.icon('drop')}</span>`).join('')}</div>${r.word ? `<p class="one">「${esc(r.word)}」</p>` : ''}${r.band ? `<p class="small muted">${esc(nameOf(SUI.TEMPS, r.band))}で</p>` : ''}${r.haiku ? `<div class="haiku">${r.haiku.map(l => `<span>${esc(l)}</span>`).join('')}<span class="eyebrow">余韻の一句</span></div>` : ''}${r.paid ? `<p class="small muted">${esc(yen(r.paid))}</p>` : ''}</div>
       <img id="rphoto" class="photo" alt="" hidden>
-      <div class="actions"><button class="btn acc" data-act="share" data-id="${r.id}">${R.icon('share')}画像で共有</button>${b ? `<button class="btn ghost" data-act="card" data-id="${b.id}">${R.icon('book')}酒カードへ</button>` : ''}<button class="btn ghost" data-act="delete-record" data-id="${r.id}">${state.confirmDelete === r.id ? 'もう一度押すと消えます' : '削除'}</button></div>
+      <div class="actions"><button class="btn acc" data-act="share" data-id="${r.id}">${R.icon('share')}画像で共有</button>${b ? `<button class="btn ghost" data-act="card" data-id="${b.id}">${R.icon('book')}酒カードへ</button>` : ''}${b && b.kind === 'sake' ? `<button class="btn ghost" data-act="record-quiet" data-id="${r.id}">${r.quiet ? 'また呼び戻す' : '呼び戻さない'}</button>` : ''}<button class="btn ghost" data-act="delete-record" data-id="${r.id}">${state.confirmDelete === r.id ? 'もう一度押すと消えます' : '削除'}</button></div>
     </div>`;
   };
 
@@ -421,6 +422,7 @@
         <ul class="notes"><li>Google AI Studio で「Get API key」→ キーを作成 → ここに貼る。</li><li>写真は読み取りのときだけ Google に送られ、端末には縮小した写真だけが残る。</li><li>キーはこの端末だけに保存される。</li></ul>
         <p class="small"><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></p></div>`}
       <div class="card stack"><div class="field"><label>AI に過去の言葉を渡す</label><div class="theme-chips"><button class="theme-chip" data-act="ai-consent-set" data-val="1" aria-pressed="${AI() && AI().consent()}">渡す（香りの三択・一句・店で・話す が使える）</button><button class="theme-chip" data-act="ai-consent-set" data-val="0" aria-pressed="${!(AI() && AI().consent())}">渡さない</button></div></div><p class="small muted">渡すのは、銘柄の情報と、あなたの色暦（最近の記録・評価・ひとこと・選んだ言葉）。声や写真は、その機能を使った瞬間だけ。中継サーバーには保存されません。</p></div>
+      <div class="card stack"><div class="field"><label>一本の線に、前の夜を出す</label><div class="theme-chips"><button class="theme-chip" data-act="recall-set" data-val="1" aria-pressed="${St.get(RECALL_KEY, null) === true}">出す</button><button class="theme-chip" data-act="recall-set" data-val="0" aria-pressed="${St.get(RECALL_KEY, null) !== true}">出さない</button></div></div><p class="small muted">記録を保存したとき、同じ蔵を前に飲んだ夜を一行で出します。端末の外には出しません。</p></div>
       <div class="card stack"><div class="field"><label>地色</label><div class="theme-chips">${[['night', '夜・漆黒（おすすめ）'], ['auto', '自動（18時から夜）'], ['day', '昼・磁器の白']].map(([v, n]) => `<button class="theme-chip" data-act="theme" data-val="${v}" aria-pressed="${theme === v}">${esc(n)}</button>`).join('')}</div></div></div>
       <div class="card stack"><div class="btnrow"><button class="btn sm ghost" data-act="export">${R.icon('download')}記録を書き出す（JSON）</button><button class="btn sm ghost" data-act="age-reset">年齢確認をやり直す</button></div><p class="small muted">${St.ok() ? '' : 'この端末では保存ができません（プライベートモード等）。'}</p></div>
       <p class="small" style="text-align:center"><a href="${esc((SUI.CONFIG && SUI.CONFIG.privacyUrl) || 'privacy.html')}" target="_blank" rel="noopener">プライバシーポリシー</a></p>
@@ -479,9 +481,25 @@
     const id = St.addRecord(rec);
     if (!id) { toast('この端末では保存できません'); return; }
     const img = s.image; state.sheet = null; renderSheet();
-    const finish = () => { toast('色暦に入れました'); go('calendar'); haikuFor(id, rec, b); };
+    const finish = () => { toast('色暦に入れました'); go('calendar'); haikuFor(id, rec, b); lineNight(id, b); };
     if (img) { const blob = St.dataUrlToBlob(img); St.putPhoto(id, blob).then(okp => { if (!okp) { St.updateRecord(id, { hasPhoto: false }); toast('写真は保存できず、記録だけ残しました'); } finish(); }); } else finish();
   }
+
+  /* ---------- 一本の線: 保存の瞬間、蔵の創業から今夜までの帯 ---------- */
+  const RECALL_KEY = 'sui.recall.v1'; /* null=まだ尋ねていない / true=前の夜を出す / false=出さない */
+  function lineNight(id, b) {
+    if (!hasDOM || !b) return;
+    const rs = St.records(), tonight = rs.find(r => r.id === id); if (!tonight) return;
+    const pref = St.get(RECALL_KEY, null);
+    const t = E.timelineOf(b, rs, { tonight, recall: pref === true }); if (!t) return;
+    const ask = pref === null && E.timelineOf(b, rs, { tonight }).recall;
+    let host = document.getElementById('linenight'); if (host) host.remove();
+    host = document.createElement('div'); host.id = 'linenight'; host.className = 'linenight'; host.dataset.id = id; host.dataset.b = b.id;
+    host.innerHTML = `<div class="ln-card" role="dialog" aria-label="一本の線"><div class="eyebrow">${esc(b.producer)}　${t.founded} — ${t.nowY}</div>${R.lineband(t)}<p class="ln-line">${esc(t.line)}</p>${t.recall ? `<p class="ln-recall">${esc(t.recall)}</p>` : ''}${ask ? `<div class="ln-ask"><p class="small">前にこの蔵を飲んだ夜も、ここに出しますか</p><div class="btnrow"><button class="btn sm acc" data-act="recall-set" data-val="1">出す</button><button class="btn sm ghost" data-act="recall-set" data-val="0">出さない</button></div></div>` : ''}<button class="linkbtn ln-close" data-act="linenight-close">閉じる</button></div>`;
+    document.body.appendChild(host);
+    requestAnimationFrame(() => host.classList.add('on'));
+  }
+  function closeLineNight() { const h = document.getElementById('linenight'); if (h) h.remove(); }
 
   /* ---------- 音声ソムリエ ---------- */
   const V = () => SUI.voice;
@@ -751,6 +769,9 @@
       case 'sheet-word': { keepSheetInputs(); const s2 = state.sheet, w = el.dataset.val; const i = s2.picked.indexOf(w); if (i >= 0) s2.picked.splice(i, 1); else s2.picked.push(w); s2.word = s2.picked.join('、'); renderSheet(); break; }
       case 'sheet-note': { keepSheetInputs(); state.sheet.word = state.sheet.note.slice(0, 40); renderSheet(); break; }
       case 'ai-consent-set': AI().setConsent(el.dataset.val === '1'); render(); break;
+      case 'recall-set': { const on = el.dataset.val === '1'; St.set(RECALL_KEY, on); const h = document.getElementById('linenight'); if (h && h.dataset.id) { const b = E.byId(h.dataset.b); closeLineNight(); if (on) lineNight(h.dataset.id, b); } else render(); break; }
+      case 'linenight-close': closeLineNight(); break;
+      case 'record-quiet': { const r = St.records().find(x => x.id === el.dataset.id); if (r) { St.updateRecord(r.id, { quiet: !r.quiet }); toast(r.quiet ? 'この夜を、また呼び戻します' : 'この夜は、もう呼び戻しません'); render(); } break; }
       case 'ai-consent': { AI().setConsent(true); toast('AIに過去の言葉を渡します'); if (state.voice) renderVoice(); else if (state.sheet) { keepSheetInputs(); suggestWords(); } else render(); break; }
       case 'sheet-save': saveSheet(); break;
       default: break;
