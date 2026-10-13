@@ -132,6 +132,7 @@ ${hist || '（最初の発話）'}`;
     if (!r.ok) { const e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
     const j = await r.json(); const part = j.candidates && j.candidates[0] && j.candidates[0].content.parts.find(p => p.inlineData);
     if (!part) throw new Error('no-audio');
+    if (/mpeg|mp3/.test(part.inlineData.mimeType)) return 'data:audio/mpeg;base64,' + part.inlineData.data; /* 中継の自然な声（Google Cloud・MP3） */
     const rate = Number((part.inlineData.mimeType.match(/rate=(\d+)/) || [])[1] || 24000);
     const bin = atob(part.inlineData.data); const pcm = new Int16Array(bin.length / 2); for (let i = 0; i < pcm.length; i++) pcm[i] = (bin.charCodeAt(i * 2) | (bin.charCodeAt(i * 2 + 1) << 8)) << 16 >> 16;
     return 'data:audio/wav;base64,' + wavBase64(pcm, rate);
