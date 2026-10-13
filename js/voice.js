@@ -157,11 +157,23 @@ ${hist || '（最初の発話）'}`;
     ['雫酒', 'しずくざけ'], ['粕取り焼酎', 'かすとりしょうちゅう'], ['玉返し', 'たまがえし'], ['朝日鷹', 'あさひたか'], ['高木顕統', 'たかぎあきつね'], ['龍泉', 'りゅうせん'],
     ['華吹雪', 'はなふぶき'], ['油川', 'あぶらかわ'], ['新政厚徳', 'あらまさこうとく'], ['新政', 'あらまさ'], ['佐藤卯兵衛', 'さとううへえ'], ['初瀬街道', 'はせかいどう'],
     ['名張', 'なばり'], ['木屋正', 'きやしょう'], ['大西唯克', 'おおにしただよし'], ['而今', 'じこん'], ['山田錦', 'やまだにしき'], ['五峰山', 'ごほうざん'],
-    ['神結', 'かみむすび'], ['嘉宝蔵', 'かほうぐら'], ['麹米', 'こうじまい'], ['（タレ）', '、タレ'], ['冷や', 'ひや'], ['燗', 'かん'], ['No.1', 'ナンバーワン']];
+    ['神結', 'かみむすび'], ['嘉宝蔵', 'かほうぐら'], ['麹米', 'こうじまい'], ['（タレ）', '、タレ'], ['上燗', 'じょうかん'], ['熱燗', 'あつかん'], ['ぐい呑', 'ぐいのみ'], ['特A地区', 'とくエーちく'], ['冷や', 'ひや'], ['燗', 'かん'], ['No.1', 'ナンバーワン']];
   /* 「米」「器」は単独のときだけ（純米・精米・南米・酒器などの熟語は、そのまま正しく読まれる） */
   const ALONE = [[/(?<![\u4e00-\u9fff])米(?![\u4e00-\u9fff])/g, 'こめ'], [/(?<![\u4e00-\u9fff])器(?![\u4e00-\u9fff])/g, 'うつわ']];
   function readings(t) { return ALONE.reduce((a, [re, r]) => a.replace(re, r), READINGS.reduce((a, [w, r]) => a.split(w).join(r), t)); }
-  function forSpeech(t) { return readings(String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、')); }
+  /* 数字は漢数字にして読ませる（2026-10-13: 「16,500円」を「じゅうろく、ごひゃくえん」と読んでいた。カンマや桁で区切られて読まれるため） */
+  function kanjiNum(n) {
+    if (n === 0) return '零'; const D = '〇一二三四五六七八九', U = ['', '十', '百', '千'], B = ['', '万', '億', '兆']; let out = '', b = 0;
+    while (n > 0) { const g = n % 10000; if (g) { let w = ''; String(g).padStart(4, '0').split('').forEach((c, i) => { const d = +c, u = U[3 - i]; if (d) w += (d === 1 && u ? '' : D[d]) + u; }); out = w + B[b] + out; } n = Math.floor(n / 10000); b++; }
+    return out;
+  }
+  const DIG = '〇一二三四五六七八九';
+  function numbers(t) {
+    return t.replace(/CO2/g, 'シーオーツー').replace(/BBQ/g, 'バーベキュー').replace(/AOC/g, 'エーオーシー').replace(/Tボーン/g, 'ティーボーン').replace(/S-type/g, 'エスタイプ').replace(/(\d)\s?m(?![A-Za-z])/g, '$1メートル').replace(/No\.\s?/g, 'ナンバー').replace(/\+(?=\d)/g, 'プラス').replace(/(\d)\s?ha\b/g, '$1ヘクタール').replace(/%/g, 'パーセント')
+      .replace(/(\d+)\.(\d+)/g, (m, a, b) => kanjiNum(Number(a)) + '点' + b.split('').map(d => DIG[+d]).join('')) /* 17.5 → 十七点五 */
+      .replace(/(\d{1,3}(?:,\d{3})+|\d+)/g, x => kanjiNum(Number(x.replace(/,/g, ''))));
+  }
+  function forSpeech(t) { return numbers(readings(String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、'))); }
   let speakGen = 0;
   async function speak(text, onStart, voice) {
     const gen = ++speakGen; problemNow = ''; const cs = chunks(forSpeech(text)); const jobs = [];
