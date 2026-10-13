@@ -93,6 +93,10 @@
     if (sel.food === 'nabe') return '出汁には、温度を合わせる。ぬる燗か、冷やしすぎない白。';
     if (sel.food === 'sashimi') return '生の魚には、香りを立てすぎない。キレで脂を流す。'; /* 温度は一本ごとに違う（ぬる燗が最良の酒もある）ので、ここでは言わない */
     if (sel.food === 'meat') return 'タレには甘みと渋み、塩には酸とキレ。';
+    if (sel.food === 'french') return 'ソースのコクには、酸か渋みか厚みで応える。';
+    if (sel.food === 'italian') return 'トマトとオリーブオイルには、酸のある一本。';
+    if (sel.food === 'spanish') return '塩気と魚介には、よく冷えた泡と白。';
+    if (sel.food === 'steak') return '赤身の肉汁には、渋みとコク。';
     if (sel.food === 'western') return 'バターと旨みには、酸か渋みをぶつける。';
     if (sel.food === 'asian') return '香辛料には、甘みと泡が逃げ道になる。';
     if (sel.food === 'sweet') return '酒は菓子より甘く。逆だと酒が痩せる。';

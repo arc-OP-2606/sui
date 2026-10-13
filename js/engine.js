@@ -28,7 +28,7 @@
     const purposeKey = sel.purpose === 'special' ? (sel.sub || 'special') : 'daily';
     if (has(b.tags.purpose, purposeKey)) s += 2; else if (sel.purpose === 'special' && b.tags.purpose.some(p => p !== 'daily')) s += 0.8;
     s += 3 * moodScore(b, sel.mood);
-    if (sel.food && sel.food !== 'none') { if (has(b.tags.food, sel.food)) s += 3; } else s += 0.5;
+    if (sel.food && sel.food !== 'none') { if (has(b.tags.food, sel.food)) s += 3; else if (foodFit(b, sel.food).level === 'good') s += 1.5; } else s += 0.5;
     if (has(b.tags.season, ctx.season)) s += 1;
     if (ctx.daypart === 'night' && (has(b.tags.mood, 'deep') || has(b.tags.mood, 'quiet'))) s += 0.5;
     if (ctx.daypart === 'day' && (has(b.tags.mood, 'refresh') || has(b.tags.mood, 'playful'))) s += 0.5;
@@ -93,6 +93,10 @@
         meat: sweet ? ['bad', '甘さが塩とタレを重くする。'] : st === 'red' ? ['good', '炭と脂に渋みが寄り添う。'] : body >= 3 ? ['neutral', '白なら塩で。'] : ['neutral', '軽い白は塩の焼き鳥向き。'],
         nabe: st === 'red' && tannin >= 4 ? ['bad', '出汁の繊細さを渋みが消す。'] : st === 'red' ? ['good', '出汁の旨みに軽い赤。'] : ['neutral', '冷やしすぎなければ寄り添う。'],
         western: sweet ? ['neutral', 'デザート寄りで。'] : ['good', 'バターと旨みに酸か渋み。'],
+        french: sweet ? ['neutral', 'フォアグラかデザートなら。'] : st === 'red' && body >= 3 ? ['good', '赤ワインのソースや鴨に、渋みと果実が寄り添う。'] : st === 'white' && body >= 3 ? ['good', 'バターとクリームのソースに、厚みのある白。'] : st === 'sparkling' ? ['good', '前菜からメインまで泡でつなぐ。'] : ['neutral', '軽めなら前菜に。'],
+        italian: sweet ? ['neutral', 'ドルチェなら。'] : acid >= 3 ? ['good', 'トマトとオリーブオイルに、酸のあるワイン。'] : st === 'red' && tannin >= 4 ? ['neutral', '肉の煮込みやラグーなら。'] : ['neutral', 'オイル系のパスタなら。'],
+        spanish: sweet ? ['neutral', '食後に。'] : st !== 'red' ? ['good', 'タパスと魚介に、冷えた泡と白。'] : tannin <= 3 ? ['good', '生ハムとチョリソに、軽やかな赤。'] : ['neutral', 'ジビエや煮込みなら。'],
+        steak: sweet ? ['bad', '甘さが肉を重くする。'] : st === 'red' && (tannin >= 3 || body >= 4) ? ['good', '赤身の肉汁と脂を、渋みが受け止める。'] : st === 'red' ? ['neutral', '赤身なら軽い赤も。'] : body >= 4 ? ['neutral', 'ソース次第で。'] : ['bad', '軽い白や泡は肉に負ける。'],
         asian: sweet || st === 'sparkling' ? ['good', '香辛料には甘みと泡が逃げ道。'] : st === 'red' && tannin >= 4 ? ['bad', '辛味が渋みを強める。'] : ['neutral', '香りの強い料理は酒を選ぶ。'],
         sweet: sweet ? ['good', '菓子より甘い酒が原則。'] : st === 'red' && tannin >= 3 ? ['bad', '菓子より酒が辛いと酒が痩せる。'] : ['neutral', '甘くない泡なら軽い菓子に。'],
       }; r = M[foodId];
@@ -103,6 +107,10 @@
         meat: ty === 'jun' || ty === 'juku' ? ['good', '濃い旨みには濃い酒。'] : ['neutral', '塩なら冷やで寄り添う。'],
         nabe: ty === 'jun' ? ['good', '出汁には米の旨み。ぬる燗で。'] : ty === 'so' ? ['good', '出汁を邪魔しない。'] : ['neutral', '燗にすると寄る。'],
         western: ty === 'kun' ? ['good', '果実の香りがチーズに寄る。'] : ty === 'juku' ? ['good', '熟成香は熟成チーズと同調。'] : ['neutral', 'クリーム系なら常温で。'],
+        french: ty === 'juku' ? ['good', '熟成香がソースのコクと同調する。'] : ty === 'kun' ? ['good', '果実の香りが前菜やクリームに寄る。'] : ty === 'jun' ? ['neutral', 'バターのソースなら常温で。'] : ['neutral', '軽い前菜なら。'],
+        italian: ty === 'so' || ty === 'kun' ? ['good', 'カルパッチョやオイル系に、キレか華やかさ。'] : ty === 'juku' ? ['neutral', 'チーズを使う皿なら。'] : ['neutral', 'トマトの酸とは競う。'],
+        spanish: ty === 'jun' ? ['good', '魚介のパエリアに、米の旨みが重なる。'] : ty === 'so' ? ['good', 'タパスの塩気をキレで流す。'] : ['neutral', '生ハムなら香りが寄る。'],
+        steak: ty === 'jun' || ty === 'juku' ? ['good', '肉の旨みに、濃い酒のコク。燗も合う。'] : ['neutral', '赤身を塩でなら冷やで。'],
         asian: ty === 'so' || ty === 'jun' ? ['good', '油と香辛料をキレか旨みで受ける。'] : ['neutral', '香りの強い料理と競う。'],
         sweet: ty === 'juku' || (ty === 'kun' && sweet) ? ['good', '甘みと香りが菓子に負けない。'] : ty === 'so' ? ['bad', '淡麗辛口は菓子に負ける。'] : ['neutral', '甘口なら。'],
       }; r = M[foodId];
