@@ -36,7 +36,8 @@
 }
 
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html { height: 100%; }
+body { min-height: 100%; } /* body を高さ固定にすると、iPhone の Safari で下のタブが画面の外に出る（2026-10-13） */
 body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.7; -webkit-font-smoothing: antialiased; padding-inline: 16px; transition: background-color var(--dur) ease, color var(--dur) ease; }
 img, svg { max-width: 100%; }
 button { font: inherit; color: inherit; }
@@ -464,3 +465,6 @@ p { margin: 0; }
 .ln-recall{font-size:14px;line-height:1.7;margin:2px 0 6px;opacity:.85;word-break:keep-all;overflow-wrap:anywhere}
 .ln-ask{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
 .ln-close{display:block;margin:8px auto 0}
+.top-left { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.backbtn { margin-left: -10px; color: var(--ink); }
+.backbtn[hidden] { display: none; }

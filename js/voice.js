@@ -125,9 +125,9 @@ ${hist || '（最初の発話）'}`;
   function setRead(v) { if (St()) St().set('sui.voice.read.v1', !!v); }
 
   /* ---------- 話す（TTS） ---------- */
-  async function synth(text) {
+  async function synth(text, voice) {
     const R = Rec().relay(); if (!R) throw new Error('no-relay');
-    const body = { contents: [{ parts: [{ text: `次の文を、落ち着いた温かい声で、少しゆっくり自然に読む: ${text}` }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } } } } };
+    const body = { contents: [{ parts: [{ text: `次の文を、落ち着いた温かい声で、少しゆっくり自然に読む: ${text}` }] }], generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || VOICE } } } } };
     const r = await fetch(R.url + '/v1/tts', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sui-token': R.token, 'x-sui-device': AI().deviceId(), 'x-sui-feature': 'voice-tts' }, body: JSON.stringify({ model: TTS_MODEL, body }) });
     if (!r.ok) { const e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
     const j = await r.json(); const part = j.candidates && j.candidates[0] && j.candidates[0].content.parts.find(p => p.inlineData);
@@ -143,12 +143,30 @@ ${hist || '（最初の発話）'}`;
     if (out.length && out[0].length > 18) { const i = out[0].indexOf('、'); if (i >= 4 && i <= 16) out.splice(0, 1, out[0].slice(0, i + 1), out[0].slice(i + 1)); }
     return out.length ? out : [String(text)]; }
   /* 読み上げ用に記号を言葉へ（画面の文字はそのまま） */
-  function forSpeech(t) { return String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、'); }
+  /* 読み違えやすい語を、かなに直して声にする（画面の文字はそのまま）。2026-10-13 塾長: 「米」をベイ、「一段上」をイチダンジョウと読んでいた。
+     長い語を先に置く（「精米歩合」を「米」より先に直す）。test/voice.test.js と store/readings-check の検査で足していく */
+  const READINGS = [['一段上', 'いちだんうえ'], ['精米歩合', 'せいまいぶあい'], ['酒造好適米', 'しゅぞうこうてきまい'], ['酒米', 'さかまい'],
+    ['生酛', 'きもと'], ['山廃', 'やまはい'], ['杜氏', 'とうじ'], ['猪口', 'ちょこ'], ['旨み', 'うまみ'], ['旨味', 'うまみ'], ['渋み', 'しぶみ'],
+    ['旗艦', 'きかん'], ['生魚', 'なまざかな'], ['日常酒', 'にちじょうしゅ'], ['蔵元', 'くらもと'], ['涼冷え', 'すずひえ'], ['冷奴', 'ひややっこ'],
+    ['獺祭', 'だっさい'], ['田酒', 'でんしゅ'], ['十四代', 'じゅうよんだい'], ['百寿', 'ひゃくじゅ'], ['千寿', 'せんじゅ'], ['萬寿', 'まんじゅ'],
+    ['五大シャトー', 'ごだいシャトー'], ['第一級', 'だいいっきゅう'], ['第二級', 'だいにきゅう'], ['豪州', 'ごうしゅう'], ['新樽', 'しんだる'], ['小樽', 'こだる'],
+    ['仔羊', 'こひつじ'], ['熟成牛', 'じゅくせいぎゅう'], ['格下', 'かくした'], ['黒鉛', 'こくえん'], ['洋梨', 'ようなし'], ['塩田千春', 'しおたちはる'],
+    ['藍茜', 'あいあかね'], ['三楽酒造', 'さんらくしゅぞう'], ['桔梗ヶ原', 'ききょうがはら'], ['寿屋', 'ことぶきや'], ['小山新助', 'こやましんすけ'], ['登美村', 'とみむら'], ['登美', 'とみ'],
+    ['天保元年', 'てんぽうがんねん'], ['越路', 'こしじ'], ['平澤亨', 'ひらさわとおる'], ['嶋悌司', 'しまていじ'], ['大坂屋長兵衛', 'おおさかやちょうべえ'],
+    ['一ノ蔵', 'いちのくら'], ['無鑑査', 'むかんさ'], ['真澄', 'ますみ'], ['奥伝寒造り', 'おくでんかんづくり'], ['夢殿', 'ゆめどの'], ['袋搾り', 'ふくろしぼり'],
+    ['雫酒', 'しずくざけ'], ['粕取り焼酎', 'かすとりしょうちゅう'], ['玉返し', 'たまがえし'], ['朝日鷹', 'あさひたか'], ['高木顕統', 'たかぎあきつね'], ['龍泉', 'りゅうせん'],
+    ['華吹雪', 'はなふぶき'], ['油川', 'あぶらかわ'], ['新政厚徳', 'あらまさこうとく'], ['新政', 'あらまさ'], ['佐藤卯兵衛', 'さとううへえ'], ['初瀬街道', 'はせかいどう'],
+    ['名張', 'なばり'], ['木屋正', 'きやしょう'], ['大西唯克', 'おおにしただよし'], ['而今', 'じこん'], ['山田錦', 'やまだにしき'], ['五峰山', 'ごほうざん'],
+    ['神結', 'かみむすび'], ['嘉宝蔵', 'かほうぐら'], ['麹米', 'こうじまい'], ['（タレ）', '、タレ'], ['冷や', 'ひや'], ['燗', 'かん'], ['No.1', 'ナンバーワン']];
+  /* 「米」「器」は単独のときだけ（純米・精米・南米・酒器などの熟語は、そのまま正しく読まれる） */
+  const ALONE = [[/(?<![\u4e00-\u9fff])米(?![\u4e00-\u9fff])/g, 'こめ'], [/(?<![\u4e00-\u9fff])器(?![\u4e00-\u9fff])/g, 'うつわ']];
+  function readings(t) { return ALONE.reduce((a, [re, r]) => a.replace(re, r), READINGS.reduce((a, [w, r]) => a.split(w).join(r), t)); }
+  function forSpeech(t) { return readings(String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、')); }
   let speakGen = 0;
-  async function speak(text, onStart) {
+  async function speak(text, onStart, voice) {
     const gen = ++speakGen; problemNow = ''; const cs = chunks(forSpeech(text)); const jobs = [];
     /* 最初の2つは同時に作り始め、i 番目を鳴らし始めたら i+2 番目を作る（文と文のあいだを空けない） */
-    const job = i => { if (i < cs.length && !jobs[i]) { jobs[i] = synth(cs[i]); jobs[i].catch(() => {}); } return jobs[i]; };
+    const job = i => { if (i < cs.length && !jobs[i]) { jobs[i] = synth(cs[i], voice); jobs[i].catch(() => {}); } return jobs[i]; };
     job(0); job(1);
     for (let i = 0; i < cs.length; i++) {
       let url; try { url = await job(i); } catch (e) {
@@ -218,5 +236,5 @@ ${hist || '（最初の発話）'}`;
   function speaking() { return !!pending || !!(canDevice() && global.speechSynthesis.speaking); }
   function problem() { return problemNow; } /* 直前の speak が失敗した理由: 'synth'（声を作れない）／'play'（鳴らせない）／''（成功・止めた） */
 
-  SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, filler, chunks, play, unlock, problem, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
+  SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, readings, filler, chunks, play, unlock, problem, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
 })(globalThis);

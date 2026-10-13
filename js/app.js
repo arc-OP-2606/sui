@@ -58,6 +58,7 @@
     if ((root.dataset.cover || '') !== cover) { root.classList.add('cover-swap'); requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('cover-swap'))); }
     if (cover) root.dataset.cover = cover; else delete root.dataset.cover;
     const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = cover || isNight() ? '#0B0A0C' : '#F7F3EE';
+    const bb = document.querySelector('.topbar .backbtn'); if (bb) bb.hidden = state.view === 'home' || state.view === 'gate'; /* ホーム以外では左上に「戻る」 */
     const issue = document.querySelector('.topbar .issue'); if (issue) issue.textContent = 'NO.' + (new Date().getMonth() + 1) + ' · ' + nameOf(SUI.SEASONS, ctx.season) + (ctx.daypart === 'night' ? 'の夜' : 'の昼');
   }
   function render() {
@@ -538,10 +539,13 @@
     const list = host.querySelector('.vbubbles'); if (list) list.scrollTop = list.scrollHeight;
   }
   /* 答えを読み上げる（設定がオンで、中継サーバーがあるときだけ。文字は先に出ている） */
-  async function voiceSay(v, text) {
+  /* 読み上げの声: 男6・女4くらい（2026-10-13 塾長）。紹介動画と同じ2人（男 Algieba・女 Sulafat）。ボタンごとに決める（毎回同じ声） */
+  const FEMALE_TOPICS = ['serve', 'food', 'next', 'gohobi', 'teiban'];
+  const voiceFor = topic => (FEMALE_TOPICS.includes(topic) ? 'Sulafat' : 'Algieba');
+  async function voiceSay(v, text, voice) {
     if (!(V().readOn() && AI() && AI().ok())) { if (state.voice === v) { v.busy = ''; renderVoice(); } return; }
     v.busy = 'preparing'; v.err = ''; renderVoice();
-    let ok = false; try { ok = await V().speak(text, engine => { if (state.voice === v && v.busy === 'preparing') { v.busy = 'speaking'; v.engine = engine; renderVoice(); } }); } catch (e) { /* 読めなくても文字は出ている */ }
+    let ok = false; try { ok = await V().speak(text, engine => { if (state.voice === v && v.busy === 'preparing') { v.busy = 'speaking'; v.engine = engine; renderVoice(); } }, voice || voiceFor('')); } catch (e) { /* 読めなくても文字は出ている */ }
     if (state.voice === v && (v.busy === 'speaking' || v.busy === 'preparing')) {
       const p = ok ? '' : V().problem();
       v.busy = ''; if (p) v.err = p === 'play' ? '音を出せませんでした。音量と消音（マナーモード）を確かめて、「もう一度聞く」を押してください。' : '声を用意できませんでした（通信）。「もう一度聞く」を押してください。';
@@ -556,7 +560,7 @@
     v.turns.push({ role: 'user', text: t.label });
     v.turns.push({ role: 'sui', text: a.text, picks: a.picks || [], staffLine: a.staffLine || null, source: '蔵DB' });
     v.lastReply = a.text; v.err = '';
-    await voiceSay(v, a.text);
+    await voiceSay(v, a.text, voiceFor(id));
   }
   /* 文字で聞く: AI が答える（許可が要る） */
   async function voiceSend() {
@@ -753,6 +757,7 @@
       case 'shop-shoot': shoot('shop'); break;
       case 'shop-place': state.sel.place = el.dataset.val; state.touched = true; render(); break;
       case 'shop-en': St.set('sui.en.v1', !St.get('sui.en.v1', false)); render(); break;
+      case 'back': back(); break;
       case 'voice-open': V().unlock(); openVoice({ bottleId: el.dataset.id || null, sel: el.dataset.sel ? state.sel : null }); break;
       case 'voice-close': closeVoice(); break;
       case 'voice-mic': V().unlock(); voiceMic(); break;
