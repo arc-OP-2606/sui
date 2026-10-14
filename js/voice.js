@@ -160,6 +160,8 @@ ${hist || '（最初の発話）'}`;
     ['神結', 'かみむすび'], ['嘉宝蔵', 'かほうぐら'], ['麹米', 'こうじまい'], ['（タレ）', '、タレ'], ['上燗', 'じょうかん'], ['熱燗', 'あつかん'], ['ぐい呑', 'ぐいのみ'], ['特A地区', 'とくエーちく'], ['冷や', 'ひや'], ['燗', 'かん'], ['No.1', 'ナンバーワン']];
   /* 「米」「器」は単独のときだけ（純米・精米・南米・酒器などの熟語は、そのまま正しく読まれる） */
   const ALONE = [[/(?<![\u4e00-\u9fff])米(?![\u4e00-\u9fff])/g, 'こめ'], [/(?<![\u4e00-\u9fff])器(?![\u4e00-\u9fff])/g, 'うつわ']];
+  /* 読み上げ台本（js/speech-ja.js）。画面の文と同じ文があれば、話し言葉に直した台本を声にする。無い文（AI の自由な答えなど）は下の決まりだけで直す */
+  function script(t) { const m = SUI.SPEECH; return (m && m[t]) || t; }
   function readings(t) { return ALONE.reduce((a, [re, r]) => a.replace(re, r), READINGS.reduce((a, [w, r]) => a.split(w).join(r), t)); }
   /* 数字は漢数字にして読ませる（2026-10-13: 「16,500円」を「じゅうろく、ごひゃくえん」と読んでいた。カンマや桁で区切られて読まれるため） */
   function kanjiNum(n) {
@@ -176,7 +178,7 @@ ${hist || '（最初の発話）'}`;
   function forSpeech(t) { return numbers(readings(String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、'))); }
   let speakGen = 0;
   async function speak(text, onStart, voice) {
-    const gen = ++speakGen; problemNow = ''; const cs = chunks(forSpeech(text)); const jobs = [];
+    const gen = ++speakGen; problemNow = ''; const cs = chunks(forSpeech(script(text))); const jobs = [];
     /* 最初の2つは同時に作り始め、i 番目を鳴らし始めたら i+2 番目を作る（文と文のあいだを空けない） */
     const job = i => { if (i < cs.length && !jobs[i]) { jobs[i] = synth(cs[i], voice); jobs[i].catch(() => {}); } return jobs[i]; };
     job(0); job(1);
@@ -248,5 +250,5 @@ ${hist || '（最初の発話）'}`;
   function speaking() { return !!pending || !!(canDevice() && global.speechSynthesis.speaking); }
   function problem() { return problemNow; } /* 直前の speak が失敗した理由: 'synth'（声を作れない）／'play'（鳴らせない）／''（成功・止めた） */
 
-  SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, readings, filler, chunks, play, unlock, problem, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
+  SUI.voice = { supported, start, stop, recording, ask, askText, topics, answer, readOn, setRead, forSpeech, synth, speak, script, readings, filler, chunks, play, unlock, problem, stopSpeaking, speaking, prompt, context, wavBase64, TTS_MODEL, VOICE };
 })(globalThis);

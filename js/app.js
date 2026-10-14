@@ -338,7 +338,7 @@
       <div class="card tint situation"><div class="eyebrow">Situation</div><h2>${esc(situationName(state.sel, ctx))}</h2><p class="small">${esc(principle(state.sel, ctx))}</p>${r.relaxed.length ? `<p class="small muted">${esc(r.relaxed.join('。'))}。</p>` : ''}${['izakaya', 'restaurant', 'bar'].includes(state.sel.place) ? `<div class="btnrow" style="margin-top:8px"><button class="btn sm" data-act="nav" data-view="shop">${R.icon('camera')}品書きを撮って選ぶ</button></div>` : ''}</div>
       <div class="section">${sectionHead('提案', 'Proposals', `<span class="row"><button class="linkbtn" data-act="voice-open" data-sel="1">sui に聞く</button><button class="linkbtn" data-act="reseed">ほかの案</button></span>`)}
       <div class="proposals">${r.items.map(it => `<button class="proposal" data-act="card" data-id="${it.bottle.id}"><span class="sw">${R.glass(Object.assign({ hue: it.bottle.hue, size: 72, seed: 3, night: isNight(), sparkle: false }, glassFor(it.bottle)))}</span><span class="body"><span class="row"><span class="role ${it.role}">${esc(nameOf(SUI.ROLES, it.role))}</span><span class="small muted">${esc(KINDNAME[it.bottle.kind])} · ${esc(priceText(it.bottle))}</span></span><span class="nm ${it.bottle.kind}">${esc(it.bottle.name)}</span><span class="why">${esc(it.why)}</span><span class="srv">${esc(serveLine(it.serve))}</span></span></button>`).join('')}</div></div>
-      <p class="small faint">価格は目安（店・時期で変動）。条件は上のチップから、いつでも変えられます。</p>
+      <p class="small faint">価格は目安（店・時期で変動）。掲載の銘柄名・社名は各社の商標または商号で、本アプリは各社とは関係ありません。情報は公開資料に基づく目安です。条件は上のチップから、いつでも変えられます。</p>
     </div>`;
   };
 
