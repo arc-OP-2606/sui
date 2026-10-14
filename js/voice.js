@@ -175,7 +175,7 @@ ${hist || '（最初の発話）'}`;
       .replace(/(\d+)\.(\d+)/g, (m, a, b) => kanjiNum(Number(a)) + '点' + b.split('').map(d => DIG[+d]).join('')) /* 17.5 → 十七点五 */
       .replace(/(\d{1,3}(?:,\d{3})+|\d+)/g, x => kanjiNum(Number(x.replace(/,/g, ''))));
   }
-  function forSpeech(t) { return numbers(readings(String(t || '').replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、'))); }
+  function forSpeech(t) { return numbers(readings(String(t || '').replace(/[^。]*…/g, '') /* 画面で途中を省いた文（…）は読まない */.replace(/（[◎○△×]）/g, '').replace(/燗は×/g, '燗は向きません').replace(/(\d+)\s*[〜~–-]\s*(\d+)\s*℃/g, '$1から$2度').replace(/℃/g, '度').replace(/[◎○△×]/g, '').replace(/・/g, '、'))); }
   let speakGen = 0;
   async function speak(text, onStart, voice) {
     const gen = ++speakGen; problemNow = ''; const cs = chunks(forSpeech(script(text))); const jobs = [];
