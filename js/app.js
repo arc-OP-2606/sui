@@ -168,9 +168,9 @@
     const body = cp.status === 'working'
       ? `${R.pour({ hue: state.accent })}<p class="status-line">${esc(cp.msg || 'ラベルを読んでいます')}</p>`
       : cp.status === 'error'
-        ? `<div class="preview">${cp.image ? `<img src="${cp.image}" alt="">` : ''}</div><p class="status-line">${esc(cp.error)}</p><div class="btnrow"><button class="btn acc" data-act="shoot">もう一度撮る</button><button class="btn ghost" data-act="nav" data-view="search">名前で探す</button>${cp.image ? '<button class="btn ghost" data-act="record-photo">写真だけ記録する</button>' : ''}</div>`
+        ? `<div class="preview">${cp.image ? `<img src="${cp.image}" alt="">` : ''}</div><p class="status-line">${esc(cp.error)}</p><div class="btnrow"><button class="btn acc" data-act="shoot">もう一度撮る</button><button class="btn ghost" data-act="shoot-lib">写真を選ぶ</button><button class="btn ghost" data-act="nav" data-view="search">名前で探す</button>${cp.image ? '<button class="btn ghost" data-act="record-photo">写真だけ記録する</button>' : ''}</div>`
         : key
-          ? `<p class="status-line">ボトルかラベルを、正面から。</p><div class="btnrow"><button class="btn acc" data-act="shoot">${R.icon('camera')}撮る</button><button class="btn ghost" data-act="nav" data-view="search">名前で探す</button></div>`
+          ? `<p class="status-line">ボトルかラベルを、正面から。</p><div class="btnrow"><button class="btn acc" data-act="shoot">${R.icon('camera')}撮る</button><button class="btn ghost" data-act="shoot-lib">写真を選ぶ</button><button class="btn ghost" data-act="nav" data-view="search">名前で探す</button></div>`
           : `<div class="card tint stack"><p>キーを入れると、写真からラベルが読めます。今は名前で探せます。</p><div class="btnrow"><button class="btn sm" data-act="nav" data-view="settings">${R.icon('key')}キーを入れる</button><button class="btn sm ghost" data-act="nav" data-view="search">名前で探す</button></div></div><div class="btnrow"><button class="btn ghost" data-act="shoot-photo">写真だけ記録する</button></div>`;
     return `<div class="view capture"><div class="eyebrow">Shoot</div><h1>目の前の一本を</h1>${body}</div>`;
   };
@@ -692,11 +692,11 @@
 
   /* ---------- 写真の流れ ---------- */
   let pendingShot = null; /* 'recognize' | 'record' | 'sheet' */
-  function shoot(mode) {
+  function shoot(mode, lib) { /* lib: 写真ライブラリ・ファイルから選ぶ（Web 版。アプリ版は撮る／選ぶのシートが出る） */
     if (!hasDOM) return; pendingShot = mode || 'recognize';
     const N = SUI.native;
     if (N && N.isNative && N.pickPhoto) { if (mode !== 'sheet' && mode !== 'shop') go('capture'); N.pickPhoto().then(file => { if (file) onFile(file); else pendingShot = null; }).catch(() => { pendingShot = null; }); return; }
-    const inp = document.getElementById('file'); inp.value = ''; inp.click(); if (mode !== 'sheet' && mode !== 'shop') go('capture');
+    const inp = document.getElementById(lib ? 'file-lib' : 'file'); inp.value = ''; inp.click(); if (mode !== 'sheet' && mode !== 'shop') go('capture');
   }
   async function onFile(file) {
     const mode = pendingShot || 'recognize'; pendingShot = null; if (!file) return;
@@ -762,6 +762,7 @@
       case 'shop-place': state.sel.place = el.dataset.val; state.touched = true; render(); break;
       case 'shop-en': St.set('sui.en.v1', !St.get('sui.en.v1', false)); render(); break;
       case 'back': back(); break;
+      case 'shoot-lib': shoot('recognize', true); break;
       case 'voice-open': V().unlock(); openVoice({ bottleId: el.dataset.id || null, sel: el.dataset.sel ? state.sel : null }); break;
       case 'voice-close': closeVoice(); break;
       case 'voice-mic': V().unlock(); voiceMic(); break;
@@ -812,7 +813,7 @@
     });
     document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.ring-seg, .wow')) act(e.target); if (e.key === 'Enter' && e.target.id === 'vtext' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); V().unlock(); voiceSend(); } });
     document.addEventListener('input', e => { if (e.target.id === 'q') { state.searchQ = e.target.value; const list = document.querySelector('.result-list'); if (list) { const tmp = document.createElement('div'); tmp.innerHTML = views.search(); list.innerHTML = tmp.querySelector('.result-list').innerHTML; } } });
-    document.getElementById('file').addEventListener('change', e => onFile(e.target.files && e.target.files[0]));
+    ['file', 'file-lib'].forEach(id => document.getElementById(id).addEventListener('change', e => onFile(e.target.files && e.target.files[0])));
     setInterval(() => { if (St.get(St.KEYS.theme, 'night') === 'auto') { const t = document.documentElement.dataset.theme; if (t !== E.daypart()) render(); } }, 60000);
     render();
     try { const q = new URLSearchParams(location.search); const shot = q.get('shot'); if (shot) devShot(shot, q.get('theme')); } catch (e) { /* ignore */ }
